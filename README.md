@@ -9,7 +9,7 @@ SID-Device can be used by SID-players like
 [ACID 64 console player](https://github.com/WilfredC64/acid64c) and
 [JSidplay2](https://sourceforge.net/projects/jsidplay2/).
 
-SID-Device v1.0 uses the emulation engine reSID 1.0 that is included in Commodore 64 emulator Vice.
+SID-Device v1.0 uses the emulation engine reSID 1.0 that is included in the Commodore 64 emulator Vice.
 
 This project started with the goal to turn a Raspberry Pi
 into a SID device.
