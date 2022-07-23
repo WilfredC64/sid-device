@@ -1,0 +1,27 @@
+[package]
+name = "resid-sys"
+version = "1.0.0"
+authors = ["Wilfred Bos"]
+edition = "2021"
+license = "GPL-3.0-or-later"
+keywords = ["reSID", "SID", "C64", "6581", "8580"]
+links = "resid"
+
+[lib]
+name = "resid"
+crate-type = ["rlib"]
+
+[dependencies]
+autocxx = "0.22.3"
+cxx = "1.0"
+
+[build-dependencies]
+autocxx-build = "0.22.3"
+miette = { version="4.7.1", features = [ "fancy" ] }
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+opt-level = 3
+lto = true
+strip = true

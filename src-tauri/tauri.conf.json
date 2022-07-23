@@ -1,0 +1,63 @@
+{
+    "package": {
+        "productName": "sid-device",
+        "version": "1.0.0"
+    },
+    "build": {
+        "distDir": "../dist",
+        "devPath": "http://localhost:5173",
+        "beforeDevCommand": "npm run dev",
+        "beforeBuildCommand": "npm run build"
+    },
+    "tauri": {
+        "bundle": {
+            "active": true,
+            "targets": "all",
+            "identifier": "com.siddevice",
+            "icon": [
+                "icons/32x32.png",
+                "icons/128x128.png",
+                "icons/128x128@2x.png",
+                "icons/icon.icns",
+                "icons/icon.ico"
+            ],
+            "resources": [],
+            "externalBin": [],
+            "copyright": "Copyright © 2022 Wilfred Bos",
+            "category": "Music",
+            "shortDescription": "",
+            "longDescription": "",
+            "deb": {
+                "depends": []
+            },
+            "macOS": {
+                "frameworks": [],
+                "exceptionDomain": "",
+                "signingIdentity": null,
+                "providerShortName": null,
+                "entitlements": null
+            },
+            "windows": {
+                "certificateThumbprint": null,
+                "digestAlgorithm": "sha256",
+                "timestampUrl": ""
+            }
+        },
+        "updater": {
+            "active": false
+        },
+        "allowlist": {
+            "all": false,
+            "dialog": {
+                "message": true
+            }
+        },
+        "systemTray": {
+            "iconPath": "icons/icon.ico",
+            "iconAsTemplate": true
+        },
+        "security": {
+            "csp": "default-src 'self'"
+        }
+    }
+}

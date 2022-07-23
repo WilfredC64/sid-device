@@ -1,0 +1,31 @@
+{
+    "name": "sid-device",
+    "description": "Network SID Device",
+    "version": "1.0.0",
+    "license": "GPL-3.0",
+    "author": "Wilfred Bos",
+    "keywords": ["reSID", "SID", "C64", "6581", "8580"],
+    "private": true,
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/WilfredC64/sid-device.git"
+    },
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "tauri": "tauri",
+        "tauri:dev": "tauri dev",
+        "tauri:build": "tauri build"
+    },
+    "dependencies": {
+        "@tauri-apps/api": "^1.0.2",
+        "vue": "^3.2.37"
+    },
+    "devDependencies": {
+        "@tauri-apps/cli": "^1.0.5",
+        "@vitejs/plugin-vue": "^3.0.1",
+        "vite": "^3.0.2",
+        "vite-svg-loader": "^3.4.0"
+    }
+}
