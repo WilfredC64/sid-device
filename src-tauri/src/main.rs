@@ -221,7 +221,7 @@ fn close_window(app_handle: &AppHandle<Wry>, label_window: &str) {
 
 fn create_dialogs(app: &mut App<Wry>) -> Result<(), Box<dyn std::error::Error>> {
     let resizable = if cfg!(unix) { true } else { false };
-    let size_correction = if cfg!(target_os = "macos") { 44.0 } else { 0.0 };
+    let height_correction = if cfg!(target_os = "macos") { 44.0 } else { 0.0 };
 
     WindowBuilder::new(
         app,
@@ -229,8 +229,8 @@ fn create_dialogs(app: &mut App<Wry>) -> Result<(), Box<dyn std::error::Error>> 
         tauri::WindowUrl::App("/pages/about/index.html".into()))
         .title("SID Device - About")
         .inner_size(600.0, 512.0)
-        .min_inner_size(600.0, 512.0 + size_correction)
-        .max_inner_size(600.0, 512.0 + size_correction)
+        .min_inner_size(600.0, 512.0 + height_correction)
+        .max_inner_size(600.0, 512.0 + height_correction)
         .center()
         .resizable(resizable)
         .fullscreen(false)
@@ -244,8 +244,8 @@ fn create_dialogs(app: &mut App<Wry>) -> Result<(), Box<dyn std::error::Error>> 
         tauri::WindowUrl::App("/pages/settings/index.html".into()))
         .title("SID Device - Settings")
         .inner_size(600.0, 450.0)
-        .min_inner_size(600.0, 450.0 + size_correction)
-        .max_inner_size(600.0, 450.0 + size_correction)
+        .min_inner_size(600.0, 450.0 + height_correction)
+        .max_inner_size(600.0, 450.0 + height_correction)
         .center()
         .resizable(resizable)
         .fullscreen(false)
