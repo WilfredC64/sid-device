@@ -220,7 +220,7 @@ fn close_window(app_handle: &AppHandle<Wry>, label_window: &str) {
 }
 
 fn create_dialogs(app: &mut App<Wry>) -> Result<(), Box<dyn std::error::Error>> {
-    let resizable = if cfg!(unix) { true } else { false };
+    let resizable = cfg!(unix);
     let height_correction = if cfg!(target_os = "macos") { 44.0 } else { 0.0 };
 
     WindowBuilder::new(
