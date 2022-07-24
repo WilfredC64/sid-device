@@ -160,7 +160,7 @@ impl SidDeviceServer {
                         sid_device_thread.handle_client(stream, receiver_clone, local_quit);
                         local_connection_count.fetch_sub(1, Ordering::SeqCst);
                     });
-                },
+                }
                 Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
                     if quit.load(Ordering::SeqCst) {
                         println!("User interruption. Quitting...\r");
@@ -219,13 +219,13 @@ impl SidDeviceServerThread {
                 match command {
                     SettingsCommand::SetAudioDevice => {
                         self.player.set_audio_device(param1);
-                    },
+                    }
                     SettingsCommand::EnableDigiboost => {
                         self.player.enable_digiboost(true);
-                    },
+                    }
                     SettingsCommand::DisableDigiboost => {
                         self.player.enable_digiboost(false);
-                    },
+                    }
                     SettingsCommand::FilterBias6581 => {
                         self.player.set_filter_bias_6581(param1);
                     }
@@ -241,7 +241,7 @@ impl SidDeviceServerThread {
                         stream.shutdown(Shutdown::Both).unwrap();
                         break;
                     }
-                },
+                }
                 Err(e) if e.kind() == io::ErrorKind::TimedOut || e.kind() == io::ErrorKind::WouldBlock => {
                     continue;
                 }
@@ -284,7 +284,7 @@ impl SidDeviceServerThread {
                 } else {
                     stream.write_all(&[CommandResponse::Busy as u8])?;
                 }
-            },
+            }
             Command::TryRead => {
                 if self.player.has_error() {
                     println!("ERROR: Audio error occurred.\r");
@@ -298,7 +298,7 @@ impl SidDeviceServerThread {
                 } else {
                     stream.write_all(&[CommandResponse::Busy as u8])?;
                 }
-            },
+            }
             Command::TryDelay => {
                 if self.player.has_error() {
                     println!("ERROR: Audio error occurred.\r");
@@ -316,7 +316,7 @@ impl SidDeviceServerThread {
                 } else {
                     stream.write_all(&[CommandResponse::Busy as u8])?;
                 }
-            },
+            }
             Command::TryReset => {
                 if data_length == 1 {
                     if !self.player.has_max_data_in_buffer() {
@@ -332,10 +332,10 @@ impl SidDeviceServerThread {
             }
             Command::GetVersion => {
                 stream.write_all(&[CommandResponse::Version as u8, PROTOCOL_VERSION])?;
-            },
+            }
             Command::GetConfigCount => {
                 stream.write_all(&[CommandResponse::Count as u8, NUMBER_OF_DEVICES])?;
-            },
+            }
             Command::GetConfigInfo => {
                 let mut response = vec![CommandResponse::Info as u8, sid_number & 0x01];
                 if sid_number == 0 {
@@ -344,11 +344,11 @@ impl SidDeviceServerThread {
                     response.append(&mut b"reSID Device (8580)\0".to_vec());
                 }
                 stream.write_all(response.as_slice())?;
-            },
+            }
             Command::Flush => {
                 self.player.flush();
                 stream.write_all(&[CommandResponse::Ok as u8])?;
-            },
+            }
             Command::TrySetSidCount => {
                 if sid_number > 0 && sid_number <= 8 {
                     self.player.set_sid_count(sid_number as i32);
@@ -357,7 +357,7 @@ impl SidDeviceServerThread {
                     println!("ERROR: TrySetSidCount sid count should be in range 1..8.\r");
                     stream.write_all(&[CommandResponse::Error as u8])?;
                 }
-            },
+            }
             Command::TrySetSidModel => {
                 if data_length == 1 {
                     let sid_model = data[4];
@@ -367,7 +367,7 @@ impl SidDeviceServerThread {
                     println!("ERROR: TrySetSidModel missing data for SID model.\r");
                     stream.write_all(&[CommandResponse::Error as u8])?;
                 }
-            },
+            }
             Command::TrySetClock => {
                 if data_length == 1 {
                     let sid_clock = data[4];
@@ -377,7 +377,7 @@ impl SidDeviceServerThread {
                     println!("ERROR: TrySetClock missing data for clock.\r");
                     stream.write_all(&[CommandResponse::Error as u8])?;
                 }
-            },
+            }
             Command::SetSidPosition => {
                 if data_length == 1 {
                     let position = data[4];
@@ -387,7 +387,7 @@ impl SidDeviceServerThread {
                     println!("ERROR: SetSidPosition missing data for SID position.\r");
                     stream.write_all(&[CommandResponse::Error as u8])?;
                 }
-            },
+            }
             Command::TrySetSampling => {
                 if data_length == 1 {
                     let sampling_method = data[4];
@@ -397,7 +397,7 @@ impl SidDeviceServerThread {
                     println!("ERROR: TrySetSampling missing data for sampling method.\r");
                     stream.write_all(&[CommandResponse::Error as u8])?;
                 }
-            },
+            }
             _ => {
                 // return Ok for not implemented methods
                 stream.write_all(&[CommandResponse::Ok as u8])?;

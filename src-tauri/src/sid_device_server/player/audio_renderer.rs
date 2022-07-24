@@ -396,7 +396,7 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
 
                     config.config_changed = true;
                 }
-            },
+            }
             PlayerCommand::SetClock => {
                 let clock = param1.unwrap();
                 config.clock = if clock == 0 {
@@ -406,7 +406,7 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
                 };
 
                 config.config_changed = true;
-            },
+            }
             PlayerCommand::SetSidCount => {
                 let count = param1.unwrap() as usize;
                 config.sid_count = count as i32;
@@ -415,7 +415,7 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
                 config.position_right = vec![0; count];
 
                 config.config_changed = true;
-            },
+            }
             PlayerCommand::SetPosition => {
                 if let Some(param1) = param1 {
                     let position = ((param1 & 0xff) as i8) as i32;
@@ -425,7 +425,7 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
                         config.position_right[sid_number as usize] = if position >= 0 { 100 } else { 100 + position };
                     }
                 }
-            },
+            }
             PlayerCommand::SetSamplingMethod => {
                 let sampling_method = param1.unwrap();
                 config.sampling_method = if sampling_method == 1 {
@@ -435,7 +435,7 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
                 };
 
                 config.config_changed = true;
-            },
+            }
             PlayerCommand::EnableDigiboost => {
                 config.digiboost = true;
 
@@ -445,7 +445,7 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
                         sids[i as usize].input(i16::MIN);
                     }
                 }
-            },
+            }
             PlayerCommand::DisableDigiboost => {
                 config.digiboost = false;
 
@@ -455,7 +455,7 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
                         sids[i as usize].input(0);
                     }
                 }
-            },
+            }
             PlayerCommand::SetFilterBias6581 => {
                 if let Some(param1) = param1 {
                     let filter_bias = param1 as i32;
@@ -467,17 +467,17 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
                         }
                     }
                 }
-            },
+            }
             PlayerCommand::SetSamplingFrequency => {
                 if let Some(param1) = param1 {
                     for i in 0..sids.len() {
                         sids[i as usize].adjust_sampling_frequency(param1 as f64);
                     }
                 }
-            },
+            }
             PlayerCommand::Reset => {
                 config.config_changed = true;
-            },
+            }
             _ => {}
         }
         return Some((command, param1));
