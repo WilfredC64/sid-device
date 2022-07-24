@@ -388,7 +388,7 @@ impl SidDeviceServerThread {
                     stream.write_all(&[CommandResponse::Error as u8])?;
                 }
             },
-            Command::TrySetSampling=> {
+            Command::TrySetSampling => {
                 if data_length == 1 {
                     let sampling_method = data[4];
                     self.player.set_sampling_method(sampling_method as i32);
