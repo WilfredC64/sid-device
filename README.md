@@ -1,7 +1,7 @@
 # SID-Device
 
 SID-Device is a cross-platform Network SID Device that emulates
-the Commodore 64 sound chip, a.k.a. SID chip (6581 / 8580).
+the Commodore 64 sound chip, a.k.a. SID chip (6581/8580).
 It runs in a local network or on your own machine.
 
 SID-Device can be used by SID-players like
