@@ -20,9 +20,10 @@ can then connect to the SID-Device and play SID tunes on it.
 
 ## Development
 
-To build the source code you need to install 
-[Rust](https://www.rust-lang.org/) and
-[NodeJS](https://nodejs.org/). 
+To build the source code you need to have the following tools installed: 
+[Rust](https://www.rust-lang.org/),
+[NodeJS](https://nodejs.org/) and
+[LLVM](https://llvm.org/). 
 For the full prerequisites, follow the guideline of [Tauri](https://tauri.studio/v1/guides/getting-started/prerequisites).
 
 For the first time you need to install all dependencies with:
