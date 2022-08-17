@@ -56,7 +56,7 @@ use crate::settings::Config;
 
 type SidDeviceChannel = (Sender<(SettingsCommand, Option<i32>)>, Receiver<(SettingsCommand, Option<i32>)>);
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum SettingsCommand {
     SetAudioDevice,
     EnableDigiboost,
@@ -76,7 +76,7 @@ fn main() {
 
     let settings = Arc::new(Mutex::new(Settings::new()));
     let system_tray = create_system_tray(settings.lock().get_config().lock().launch_at_start_enabled);
-
+    
     let device_state = start_sid_device_thread(device_receiver, &settings);
 
     let app = tauri::Builder::default()

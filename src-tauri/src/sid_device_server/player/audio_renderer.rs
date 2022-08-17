@@ -49,7 +49,7 @@ pub struct SidWrite {
     pub cycles: u16,
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum PlayerCommand {
     SetClock,
     SetModel,
