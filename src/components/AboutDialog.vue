@@ -70,6 +70,7 @@ export default {
     background-size: 100% 500px;
     background-position: bottom center;
     background-attachment: fixed;
+    display: none;
 
     text-align: center;
     overflow-y: auto;
