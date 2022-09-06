@@ -64,8 +64,8 @@ impl Settings {
             .set_app_name("sid-device")
             .set_app_path(std::env::current_exe().unwrap().to_str().unwrap())
             .set_use_launch_agent(true)
-            .set_hidden(true)
-            .build();
+            .build()
+            .unwrap();
 
         let config = Arc::new(Mutex::new(Self::load_config(auto_launch.is_enabled().unwrap())));
 
