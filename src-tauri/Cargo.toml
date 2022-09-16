@@ -11,14 +11,14 @@ edition = "2021"
 rust-version = "1.61"
 
 [build-dependencies]
-tauri-build = { version = "1.0.4", features = [] }
+tauri-build = { version = "1.1.0", features = [] }
 
 [dependencies]
-anyhow = "1.0.64"
-app_dirs2 = "2.5.2"
+anyhow = "1.0.65"
+app_dirs2 = "2.5.3"
 atomicring = "1.2.9"
 async-broadcast = "0.4.0"
-auto-launch = "0.3.0"
+auto-launch = "0.4.0"
 cpal = "0.14.0"
 crossbeam-channel = "0.5.6"
 futures-lite = "1.12.0"
@@ -28,7 +28,7 @@ resid-sys = { path = "resid-sys", version = "=1.0.0" }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 single-instance = "0.3.3"
-tauri = { version = "1.0.5", features = ["dialog-message", "system-tray"] }
+tauri = { version = "1.1.0", features = ["dialog-message", "system-tray"] }
 thread-priority = "0.9.2"
 typed-builder = "0.10.0"
 
