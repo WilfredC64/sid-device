@@ -12,7 +12,7 @@ mod settings;
 mod sid_device_server;
 mod utils;
 
-use std::{thread, time};
+use std::{thread, time::Duration};
 use std::process::exit;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -76,7 +76,7 @@ fn main() {
 
     let settings = Arc::new(Mutex::new(Settings::new()));
     let system_tray = create_system_tray(settings.lock().get_config().lock().launch_at_start_enabled);
-    
+
     let device_state = start_sid_device_thread(device_receiver, &settings);
 
     let app = tauri::Builder::default()
@@ -157,7 +157,7 @@ fn start_sid_device_thread(receiver: Receiver<(SettingsCommand, Option<i32>)>, s
 fn start_sid_device_loop(receiver: Receiver<(SettingsCommand, Option<i32>)>, settings_clone: &Arc<Mutex<Settings>>, device_state: DeviceState) {
     while device_state.restart.load(Ordering::SeqCst) {
         while device_state.error.load(Ordering::SeqCst) {
-            thread::sleep(time::Duration::from_millis(500));
+            thread::sleep(Duration::from_millis(500));
         }
 
         let mut sid_device_server = SidDeviceServer::new(settings_clone.lock().get_config());

@@ -5,8 +5,7 @@ use parking_lot::Mutex;
 use std::cmp::{min, max};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::{thread, time};
-use std::time::Instant;
+use std::{thread, time::{Duration, Instant}};
 
 use atomicring::AtomicRingBuffer;
 use cpal::{Device, OutputCallbackInfo, Sample, SampleFormat, StreamConfig};
@@ -336,13 +335,13 @@ impl AudioRenderer {
                 }
             } else {
                 if !device_state.queue_started.load(Ordering::SeqCst) {
-                    thread::sleep(time::Duration::from_millis(5));
+                    thread::sleep(Duration::from_millis(5));
                     continue;
                 }
 
                 try_generate_sample(sound_buffer, queue, &mut sids, &device_state.cycles_in_buffer, &mut config);
                 if Self::has_enough_data(sound_buffer, &device_state) {
-                    thread::sleep(time::Duration::from_millis(1));
+                    thread::sleep(Duration::from_millis(1));
                 }
             }
         }
@@ -650,7 +649,7 @@ fn run<T>(device: &Device, config: &StreamConfig, sound_buffer: Arc<AtomicRingBu
         } else {
             stream.play()?;
         }
-        thread::sleep(time::Duration::from_millis(STOP_PAUSE_LATENCY_IN_MILLIS));
+        thread::sleep(Duration::from_millis(STOP_PAUSE_LATENCY_IN_MILLIS));
     }
 
     Ok(())
@@ -659,8 +658,7 @@ fn run<T>(device: &Device, config: &StreamConfig, sound_buffer: Arc<AtomicRingBu
 fn write_data<T>(output: &mut [T], channels: usize, next_value: &mut dyn FnMut() -> T) where T: Sample {
     for frame in output.chunks_mut(channels) {
         for sample in frame.iter_mut() {
-            let value: T = next_value();
-            *sample = value;
+            *sample = next_value();
         }
     }
 }

@@ -3,11 +3,11 @@
 
 mod player;
 
-use std::io::{Read, Write};
+use std::io::{self, ErrorKind, Read, Write};
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
-use std::{io, thread, time};
+use std::{thread, time::Duration};
 
 use async_broadcast::Receiver;
 use parking_lot::Mutex;
@@ -129,7 +129,7 @@ impl SidDeviceServer {
         let listener = TcpListener::bind([host, DEFAULT_PORT_NUMBER].join(":"));
         if let Err(error) = listener {
             return Err(
-                if error.kind() == io::ErrorKind::AddrInUse || error.kind() == io::ErrorKind::PermissionDenied {
+                if error.kind() == ErrorKind::AddrInUse || error.kind() == ErrorKind::PermissionDenied {
                     "Another SID device seems to be already running on port 6581. Please close it and try again.".to_string()
                 } else {
                     error.to_string()
@@ -161,12 +161,12 @@ impl SidDeviceServer {
                         local_connection_count.fetch_sub(1, Ordering::SeqCst);
                     });
                 }
-                Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                Err(e) if e.kind() == ErrorKind::WouldBlock => {
                     if quit.load(Ordering::SeqCst) {
                         println!("User interruption. Quitting...\r");
                         break;
                     }
-                    thread::sleep(time::Duration::from_millis(10));
+                    thread::sleep(Duration::from_millis(10));
                     continue;
                 }
                 Err(e) => {
@@ -178,7 +178,7 @@ impl SidDeviceServer {
 
         // wait for connections to close
         while self.connection_count.load(Ordering::SeqCst) > 0 {
-            thread::sleep(time::Duration::from_millis(10));
+            thread::sleep(Duration::from_millis(10));
         }
         Ok(())
     }
@@ -204,8 +204,8 @@ impl SidDeviceServerThread {
 
     fn handle_client(&mut self, mut stream: TcpStream, mut receiver: Receiver<(SettingsCommand, Option<i32>)>, quit: Arc<AtomicBool>) {
         let mut data = [0u8; 4096];
-        stream.set_read_timeout(Some(time::Duration::from_millis(100))).unwrap();
-        stream.set_write_timeout(Some(time::Duration::from_millis(100))).unwrap();
+        stream.set_read_timeout(Some(Duration::from_millis(100))).unwrap();
+        stream.set_write_timeout(Some(Duration::from_millis(100))).unwrap();
         stream.set_nonblocking(false).unwrap();
 
         loop {
@@ -242,7 +242,7 @@ impl SidDeviceServerThread {
                         break;
                     }
                 }
-                Err(e) if e.kind() == io::ErrorKind::TimedOut || e.kind() == io::ErrorKind::WouldBlock => {
+                Err(e) if e.kind() == ErrorKind::TimedOut || e.kind() == ErrorKind::WouldBlock => {
                     continue;
                 }
                 Err(e) => {
