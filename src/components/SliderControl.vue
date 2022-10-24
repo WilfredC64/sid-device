@@ -457,6 +457,8 @@ export default {
     padding: 0;
     user-select: none;
     width: 100%;
+
+    -webkit-tap-highlight-color: transparent;
 }
 
 .progress-border:hover {
