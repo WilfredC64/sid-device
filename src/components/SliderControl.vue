@@ -4,12 +4,12 @@
 -->
 
 <template>
-    <div ref="progressBorder" class="progress-border" @mousedown="setPosAndMove" @mouseenter="colorPosition" @mousemove="colorPosition">
+    <div ref="progressBorder" class="progress-border" @mousedown="setPosAndMove" @touchstart="setPosAndMove" @mouseenter="colorPosition" @mousemove="colorPosition">
         <div ref="progressWrapper" @keydown="handleKeyDown" class="progress-wrapper">
             <div ref="sliderValue" class="slider-value">100</div>
             <div class="progress-bar" tabindex="0">
                 <div ref="indicatorWrapper" class="indicator-wrapper">
-                  <indicator ref="indicator" class="indicator" alt="value indicator" @drag="false" @mousedown="initMoveIndicator"></indicator>
+                  <indicator ref="indicator" class="indicator" alt="value indicator" @drag="false" @mousedown="initMoveIndicator" @touchstart="initMoveIndicator"></indicator>
                 </div>
                 <div ref="progress" class="progress">
                     <div ref="sliderBarLeft" class="slider-bar-left"></div>
@@ -112,8 +112,15 @@ export default {
         };
 
         const colorPosition = (event) => {
-            const newX = calculateNewXPos(event.clientX);
+            let xPos = 0;
+            if (event.type === 'touchstart' || event.type === 'touchmove') {
+                let touch = event.touches[0];
+                xPos = touch.pageX;
+            } else {
+                xPos = event.clientX;
+            }
 
+            const newX = calculateNewXPos(xPos);
             const positionInPercentage = newX / progress.value.clientWidth * 100;
 
             sliderValue.value.style.left = positionInPercentage + '%';
@@ -163,10 +170,12 @@ export default {
             indicator.value.classList?.remove('hover');
             sliderValue.value.classList?.remove('hover');
             removeEventListener('mousemove', move);
+            removeEventListener('touchmove', move);
         };
 
         const initMoveIndicator = () => {
             addEventListener('mousemove', move, false);
+            addEventListener('touchmove', move, false);
         };
 
         const move = (event) => {
@@ -174,7 +183,15 @@ export default {
             sliderValue.value.classList?.add('hover');
             movingIndicator = true;
 
-            const newX = calculateNewXPos(event.clientX);
+            let xPos = 0;
+            if (event.type === 'touchstart' || event.type === 'touchmove') {
+                let touch = event.touches[0];
+                xPos = touch.pageX;
+            } else {
+                xPos = event.clientX;
+            }
+
+            const newX = calculateNewXPos(xPos);
             const positionInPercentage = newX / progress.value.clientWidth * 100;
 
             resetSliderBars(positionInPercentage);
@@ -306,10 +323,12 @@ export default {
 
         onMounted(() => {
             addEventListener('mouseup', stopMoveIndicator, false);
+            addEventListener('touchend', stopMoveIndicator, false);
         });
 
         onUnmounted(() => {
             removeEventListener('mouseup', stopMoveIndicator);
+            removeEventListener('touchend', stopMoveIndicator);
         });
 
         return {
