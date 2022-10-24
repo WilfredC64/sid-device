@@ -112,7 +112,7 @@ export default {
         };
 
         const colorPosition = (event) => {
-            let xPos = 0;
+            let xPos;
             if (event.type === 'touchstart' || event.type === 'touchmove') {
                 let touch = event.touches[0];
                 xPos = touch.pageX;
@@ -183,7 +183,7 @@ export default {
             sliderValue.value.classList?.add('hover');
             movingIndicator = true;
 
-            let xPos = 0;
+            let xPos;
             if (event.type === 'touchstart' || event.type === 'touchmove') {
                 let touch = event.touches[0];
                 xPos = touch.pageX;
