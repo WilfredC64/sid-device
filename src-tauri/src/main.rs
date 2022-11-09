@@ -106,7 +106,7 @@ fn main() {
             move |app_handle, event| match event {
                 SystemTrayEvent::DoubleClick { position: _, size: _, .. } => {
                     hide_window(app_handle, "about");
-                    show_settings_window(app_handle, "settings", &*settings.lock().get_config().lock());
+                    show_settings_window(app_handle, "settings", &settings.lock().get_config().lock());
                 }
                 SystemTrayEvent::MenuItemClick { id, .. } => {
                     handle_menu_item_click(app_handle, &id, &settings);
@@ -191,7 +191,7 @@ fn handle_menu_item_click(app_handle: &AppHandle<Wry>, id: &str, settings: &Arc<
         }
         "settings" => {
             hide_window(app_handle, "about");
-            show_settings_window(app_handle, "settings", &*settings.lock().get_config().lock());
+            show_settings_window(app_handle, "settings", &settings.lock().get_config().lock());
         }
         "launch at startup" => {
             toggle_launch_at_start(&app_handle.tray_handle(), settings, id);
