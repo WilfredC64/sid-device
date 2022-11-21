@@ -4,7 +4,7 @@
 -->
 
 <template>
-    <input :id="id" type="checkbox" v-model="checked" @change="emitValue">
+    <input :id="id" type="checkbox" :checked="checked" @change="emitValue">
     <label :for="id">{{ label }}</label>
 </template>
 
