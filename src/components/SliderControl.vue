@@ -9,7 +9,7 @@
             <div ref="sliderValue" class="slider-value">100</div>
             <div class="progress-bar" tabindex="0">
                 <div ref="indicatorWrapper" class="indicator-wrapper">
-                  <indicator ref="indicator" class="indicator" alt="value indicator" @drag="false" @mousedown="initMoveIndicator" @touchstart="initMoveIndicator"></indicator>
+                  <indicator ref="indicator" class="indicator" alt="value indicator" @drag="false" @dblclick="setDefaultValue" @mousedown="initMoveIndicator" @touchstart="initMoveIndicator"></indicator>
                 </div>
                 <div ref="progress" class="progress">
                     <div ref="sliderBarLeft" class="slider-bar-left"></div>
@@ -229,6 +229,11 @@ export default {
             sliderBarLeft.value.style.width = posInPixels - sliderBarLeft.value.offsetLeft + 'px';
         };
 
+        const setDefaultValue = () => {
+            setValueIndicatorPercentage((props.defaultValue - Number(minValue)) / (Number(maxValue) - Number(minValue)));
+            emitChange();
+        };
+
         const throttle = (fn, limit) => {
             let throttleTimer;
             let lastRan = Date.now();
@@ -265,8 +270,7 @@ export default {
                     break;
                 }
                 case 'Delete': {
-                    setValueIndicatorPercentage((props.defaultValue - Number(minValue)) / (Number(maxValue) - Number(minValue)));
-                    emitChange();
+                    setDefaultValue();
 
                     event.preventDefault();
                     break;
@@ -344,6 +348,7 @@ export default {
             handleKeyDown,
             initMoveIndicator,
             setPosAndMove,
+            setDefaultValue,
         }
     },
     components: {
