@@ -2,7 +2,7 @@
 // Licensed under the GNU GPL v3 license. See the LICENSE file for the terms and conditions.
 
 use parking_lot::Mutex;
-use std::cmp::{min, max};
+use std::cmp::min;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::{thread, time::{Duration, Instant}};
@@ -384,7 +384,7 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
             PlayerCommand::SetModel => {
                 if let Some(param1) = param1 {
                     let model = param1 & 0xff;
-                    let sid_number = (param1 >> 8) as i32;
+                    let sid_number = param1 >> 8;
                     if sid_number >= 0 && sid_number < config.sid_count {
                         config.chip_model[sid_number as usize] = if model == 0 {
                             chip_model::MOS6581
@@ -418,7 +418,7 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
             PlayerCommand::SetPosition => {
                 if let Some(param1) = param1 {
                     let position = ((param1 & 0xff) as i8) as i32;
-                    let sid_number = (param1 >> 8) as i32;
+                    let sid_number = param1 >> 8;
                     if sid_number >= 0 && sid_number < config.sid_count {
                         config.position_left[sid_number as usize] = if position <= 0 { 100 } else { 100 - position };
                         config.position_right[sid_number as usize] = if position >= 0 { 100 } else { 100 + position };
@@ -438,39 +438,39 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
             PlayerCommand::EnableDigiboost => {
                 config.digiboost = true;
 
-                for i in 0..sids.len() {
-                    if config.chip_model[i as usize] == chip_model::MOS8580 {
-                        sids[i as usize].set_voice_mask(0x0f_u32);
-                        sids[i as usize].input(i16::MIN);
+                for (i, sid) in sids.iter_mut().enumerate() {
+                    if config.chip_model[i] == chip_model::MOS8580 {
+                        sid.set_voice_mask(0x0f_u32);
+                        sid.input(i16::MIN);
                     }
                 }
             }
             PlayerCommand::DisableDigiboost => {
                 config.digiboost = false;
 
-                for i in 0..sids.len() {
-                    if config.chip_model[i as usize] == chip_model::MOS8580 {
-                        sids[i as usize].set_voice_mask(0x07_u32);
-                        sids[i as usize].input(0);
+                for (i, sid) in sids.iter_mut().enumerate() {
+                    if config.chip_model[i] == chip_model::MOS8580 {
+                        sid.set_voice_mask(0x07_u32);
+                        sid.input(0);
                     }
                 }
             }
             PlayerCommand::SetFilterBias6581 => {
                 if let Some(param1) = param1 {
-                    let filter_bias = param1 as i32;
+                    let filter_bias = param1;
                     config.filter_bias_6581 = filter_bias as f64 / 100.0;
 
-                    for i in 0..sids.len() {
-                        if config.chip_model[i as usize] == chip_model::MOS6581 {
-                            sids[i as usize].adjust_filter_bias(config.filter_bias_6581);
+                    for (i, sid) in sids.iter_mut().enumerate() {
+                        if config.chip_model[i] == chip_model::MOS6581 {
+                            sid.adjust_filter_bias(config.filter_bias_6581);
                         }
                     }
                 }
             }
             PlayerCommand::SetSamplingFrequency => {
                 if let Some(param1) = param1 {
-                    for i in 0..sids.len() {
-                        sids[i as usize].adjust_sampling_frequency(param1 as f64);
+                    for sid in &mut sids.iter_mut() {
+                        sid.adjust_sampling_frequency(param1 as f64);
                     }
                 }
             }
@@ -570,7 +570,7 @@ fn generate_sample(audio_output_stream: &mut Arc<AtomicRingBuffer<i16>>, sid_wri
                     for sid_num in 0..config.sid_count as usize {
                         let (sample_length, cycles_left) = sids[sid_num].sample(cycles, &mut sample_buffers[sid_num], 1);
 
-                        total_sample_length = sample_length as usize;
+                        total_sample_length = sample_length;
                         total_cycles_left = cycles_left;
                     }
 
@@ -612,7 +612,7 @@ fn generate_sample(audio_output_stream: &mut Arc<AtomicRingBuffer<i16>>, sid_wri
     if total_cycles > 0 {
         let cycles = cycles_in_buffer.load(Ordering::SeqCst);
         if cycles > total_cycles {
-            cycles_in_buffer.fetch_sub(total_cycles as u32, Ordering::SeqCst);
+            cycles_in_buffer.fetch_sub(total_cycles, Ordering::SeqCst);
         } else {
             cycles_in_buffer.store(0, Ordering::SeqCst);
         }
@@ -621,7 +621,7 @@ fn generate_sample(audio_output_stream: &mut Arc<AtomicRingBuffer<i16>>, sid_wri
 
 #[inline]
 fn add_dithering_and_limit_output(sample: i32, dithering: i32) -> i16 {
-    max(min(sample + dithering, i16::MAX as i32), i16::MIN as i32) as i16
+    (sample + dithering).clamp(i16::MIN as i32, i16::MAX as i32) as i16
 }
 
 fn run<T>(device: &Device, config: &StreamConfig, sound_buffer: Arc<AtomicRingBuffer<i16>>, should_stop: Arc<AtomicBool>, should_pause: Arc<AtomicBool>) -> Result<(), anyhow::Error> where T: Sample {

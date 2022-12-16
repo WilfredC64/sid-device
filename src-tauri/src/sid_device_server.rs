@@ -361,7 +361,7 @@ impl SidDeviceServerThread {
             Command::TrySetSidModel => {
                 if data_length == 1 {
                     let sid_model = data[4];
-                    self.player.set_model(((sid_number as i32) << 8) as i32 | sid_model as i32);
+                    self.player.set_model(((sid_number as i32) << 8) | sid_model as i32);
                     stream.write_all(&[CommandResponse::Ok as u8])?;
                 } else {
                     println!("ERROR: TrySetSidModel missing data for SID model.\r");
@@ -381,7 +381,7 @@ impl SidDeviceServerThread {
             Command::SetSidPosition => {
                 if data_length == 1 {
                     let position = data[4];
-                    self.player.set_position(((sid_number as i32) << 8) as i32 | position as i32);
+                    self.player.set_position(((sid_number as i32) << 8) | position as i32);
                     stream.write_all(&[CommandResponse::Ok as u8])?;
                 } else {
                     println!("ERROR: SetSidPosition missing data for SID position.\r");

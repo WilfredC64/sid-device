@@ -97,7 +97,7 @@ impl Settings {
                     }
 
                     let config_filename = Self::get_config_filename();
-                    let writer = BufWriter::new(File::create(&config_filename).unwrap());
+                    let writer = BufWriter::new(File::create(config_filename).unwrap());
                     serde_json::to_writer(writer, &*config_clone.lock()).unwrap();
 
                     save_in_progress_clone.store(false, Ordering::SeqCst);

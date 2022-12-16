@@ -277,7 +277,7 @@ fn setup_listeners(app: &mut App<Wry>) {
 
                     let msg = device_state.error_msg.lock().to_owned() + "\r\rTry again?";
 
-                    ask(None::<&Window<Wry>>, "SID-Device Error", &msg, move |answer| {
+                    ask(None::<&Window<Wry>>, "SID-Device Error", msg, move |answer| {
                         if answer {
                             error_clone.store(false, Ordering::SeqCst);
                         } else {
