@@ -259,9 +259,9 @@ impl SidDeviceServerThread {
     fn process_command(&mut self, stream: &mut TcpStream, data: &[u8]) -> io::Result<()> {
         let command: Command = Command::from_u8(data[0]);
 
-        if let Command::Unknown = command {
+        if matches!(command, Command::Unknown) {
             println!("ERROR: Unknown command.\r");
-            stream.shutdown(Shutdown::Both)?;
+            stream.write_all(&[CommandResponse::Error as u8])?;
             stream.flush()?;
             return Ok(());
         }
