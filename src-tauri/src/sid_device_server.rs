@@ -70,7 +70,8 @@ enum Command {
     SetDelay,
     SetFadeIn,
     SetFadeOut,
-    SetPsidHeader
+    SetPsidHeader,
+    Unknown
 }
 
 impl Command {
@@ -95,7 +96,7 @@ impl Command {
             16 => Command::SetFadeIn,
             17 => Command::SetFadeOut,
             18 => Command::SetPsidHeader,
-            _ => panic!("Unknown value: {}", value),
+            _ => Command::Unknown,
         }
     }
 }
@@ -257,6 +258,13 @@ impl SidDeviceServerThread {
 
     fn process_command(&mut self, stream: &mut TcpStream, data: &[u8]) -> io::Result<()> {
         let command: Command = Command::from_u8(data[0]);
+
+        if let Command::Unknown = command {
+            println!("ERROR: Unknown command.\r");
+            stream.shutdown(Shutdown::Both)?;
+            stream.flush()?;
+            return Ok(());
+        }
 
         let sid_number: u8 = data[1];
         let data_length: usize = ((data[2] as usize) << 8) + (data[3] as usize);
