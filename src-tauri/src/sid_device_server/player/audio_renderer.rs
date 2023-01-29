@@ -629,7 +629,7 @@ fn run<T>(device: &Device, config: &StreamConfig, sound_buffer: Arc<AtomicRingBu
 
     let err_fn = |err| {
         AUDIO_ERROR.store(true, Ordering::SeqCst);
-        println!("ERROR: {}\r", err);
+        println!("ERROR: {err}\r");
     };
 
     let mut next_value = move || {

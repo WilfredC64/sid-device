@@ -148,7 +148,7 @@ impl SidDeviceServer {
         loop {
             match listener.accept() {
                 Ok((stream, address)) => {
-                    println!("New client connected: {}\r", address);
+                    println!("New client connected: {address}\r");
 
                     let local_quit = quit.clone();
                     let receiver_clone: Receiver<(SettingsCommand, Option<i32>)> = receiver.clone();
@@ -171,7 +171,7 @@ impl SidDeviceServer {
                     continue;
                 }
                 Err(e) => {
-                    println!("ERROR: {}\r", e);
+                    println!("ERROR: {e}\r");
                     break;
                 }
             }

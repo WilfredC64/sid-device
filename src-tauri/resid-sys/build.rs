@@ -21,7 +21,7 @@ fn main() -> miette::Result<()> {
     }
 
     let path = std::path::PathBuf::from("src");
-    autocxx_build::Builder::new("src/lib.rs", &[&path]).build()?
+    autocxx_build::Builder::new("src/lib.rs", [&path]).build()?
         .define("VERSION", Some("\"1.0\""))
         .define("NEW_8580_FILTER", Some(if USE_NEW_FILTER {"1"} else {"0"}))
         .files(src)

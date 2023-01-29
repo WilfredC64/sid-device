@@ -169,7 +169,7 @@ fn start_sid_device_loop(receiver: Receiver<(SettingsCommand, Option<i32>)>, set
         let server_result = sid_device_server.start(allow_external_connections,receiver.clone(), device_state.device_ready.clone(), device_state.quit.clone());
 
         if let Err(server_result) = server_result {
-            println!("ERROR: {}\r", server_result);
+            println!("ERROR: {server_result}\r");
             device_state.set_error(server_result);
         }
     }
