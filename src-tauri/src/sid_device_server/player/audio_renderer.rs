@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Wilfred Bos
+// Copyright (C) 2022 - 2023 Wilfred Bos
 // Licensed under the GNU GPL v3 license. See the LICENSE file for the terms and conditions.
 
 use parking_lot::Mutex;
@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::{thread, time::{Duration, Instant}};
 
 use atomicring::AtomicRingBuffer;
-use cpal::{Device, OutputCallbackInfo, Sample, SampleFormat, StreamConfig};
+use cpal::{Device, FromSample, OutputCallbackInfo, SampleFormat, SizedSample, StreamConfig};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use crossbeam_channel::{Sender, Receiver, bounded};
 use rand::Rng;
@@ -242,9 +242,17 @@ impl AudioRenderer {
 
         self.audio_thread = Some(thread::spawn(move || {
             let _ = match device_config.sample_format() {
-                SampleFormat::F32 => run::<f32>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
+                SampleFormat::I8 => run::<i8>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
+                SampleFormat::U8 => run::<u8>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
                 SampleFormat::I16 => run::<i16>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
-                SampleFormat::U16 => run::<u16>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause)
+                SampleFormat::U16 => run::<u16>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
+                SampleFormat::I32 => run::<i32>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
+                SampleFormat::U32 => run::<u32>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
+                SampleFormat::F32 => run::<f32>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
+                SampleFormat::I64 => run::<i64>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
+                SampleFormat::U64 => run::<u64>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
+                SampleFormat::F64 => run::<f64>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
+                _ => Ok(()),
             };
         }));
     }
@@ -624,7 +632,10 @@ fn add_dithering_and_limit_output(sample: i32, dithering: i32) -> i16 {
     (sample + dithering).clamp(i16::MIN as i32, i16::MAX as i32) as i16
 }
 
-fn run<T>(device: &Device, config: &StreamConfig, sound_buffer: Arc<AtomicRingBuffer<i16>>, should_stop: Arc<AtomicBool>, should_pause: Arc<AtomicBool>) -> Result<(), anyhow::Error> where T: Sample {
+fn run<T>(device: &Device, config: &StreamConfig, sound_buffer: Arc<AtomicRingBuffer<i16>>, should_stop: Arc<AtomicBool>, should_pause: Arc<AtomicBool>) -> Result<(), anyhow::Error>
+where
+    T: SizedSample + FromSample<i16>
+{
     let channels = config.channels as usize;
 
     let err_fn = |err| {
@@ -633,14 +644,14 @@ fn run<T>(device: &Device, config: &StreamConfig, sound_buffer: Arc<AtomicRingBu
     };
 
     let mut next_value = move || {
-        T::from::<i16>(&sound_buffer.try_pop().unwrap_or(0))
+       sound_buffer.try_pop().unwrap_or(0)
     };
 
     let output_stream = move |data: &mut [T], _: &OutputCallbackInfo| {
         write_data(data, channels, &mut next_value)
     };
 
-    let stream = device.build_output_stream(config, output_stream, err_fn)?;
+    let stream = device.build_output_stream(config, output_stream, err_fn, None)?;
     stream.play()?;
 
     while !should_stop.load(Ordering::SeqCst) {
@@ -655,10 +666,13 @@ fn run<T>(device: &Device, config: &StreamConfig, sound_buffer: Arc<AtomicRingBu
     Ok(())
 }
 
-fn write_data<T>(output: &mut [T], channels: usize, next_value: &mut dyn FnMut() -> T) where T: Sample {
+fn write_data<T>(output: &mut [T], channels: usize, next_value: &mut dyn FnMut() -> i16)
+where
+    T: SizedSample + FromSample<i16>
+{
     for frame in output.chunks_mut(channels) {
         for sample in frame.iter_mut() {
-            *sample = next_value();
+            *sample = T::from_sample(next_value());
         }
     }
 }
