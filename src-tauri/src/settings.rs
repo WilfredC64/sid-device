@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Wilfred Bos
+// Copyright (C) 2022 - 2023 Wilfred Bos
 // Licensed under the GNU GPL v3 license. See the LICENSE file for the terms and conditions.
 
 use std::fs::File;
@@ -160,7 +160,7 @@ impl Settings {
         Config::new(
             false,
             auto_launch_enabled,
-            false,
+            true,
             None,
             Some(DEFAULT_FILTER_BIAS_6581),
             DEFAULT_FILTER_BIAS_6581

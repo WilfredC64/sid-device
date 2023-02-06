@@ -1,5 +1,5 @@
 <!--
-  Copyright (C) 2022 Wilfred Bos
+  Copyright (C) 2022 - 2023 Wilfred Bos
   Licensed under the GNU GPL v3 license. See the LICENSE file for the terms and conditions.
 -->
 
@@ -8,19 +8,19 @@
         <div id="content">
             <img alt="Sid-Device logo" class="logo" draggable="false" ondragstart="return false;" src="../assets/sid_device_256x256.png">
             <div class="title-wrapper">
-                <h1 class="title">SID Device v1.0</h1>
+                <h1 class="title">SID Device v1.0.1</h1>
             </div>
             <div class="credits">
                 <p>
-                    Copyright &#xa9; 2021 - 2022 by Wilfred Bos
+                    Copyright &#xa9; 2021 - 2023 by Wilfred Bos
                 </p>
                 <p>
-                    Network SID Interface &ndash; Copyright &#xa9; 2007 - 2022
+                    Network SID Interface &ndash; Copyright &#xa9; 2007 - 2023
                     <br/>
                     by Wilfred Bos, Ken H&auml;ndel and Antti S. Lankila
                 </p>
                 <p>
-                    reSID v1.0 &ndash; Copyright &#xa9; 1998 - 2022 by Dag Lem
+                    reSID v1.0 &ndash; Copyright &#xa9; 1998 - 2023 by Dag Lem
                 </p>
             </div>
         </div>

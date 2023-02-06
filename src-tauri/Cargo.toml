@@ -1,6 +1,6 @@
 [package]
 name = "sid-device"
-version = "1.0.0"
+version = "1.0.1"
 description = "Network SID Device"
 keywords = ["SIDDevice", "C64", "SID", "6581", "8580"]
 authors = ["Wilfred Bos"]
@@ -22,6 +22,8 @@ auto-launch = "0.4.0"
 cpal = "0.15.0"
 crossbeam-channel = "0.5.6"
 futures-lite = "1.12.0"
+hostname = "0.3.1"
+os_info = "3"
 parking_lot = "0.12.1"
 rand = "0.8.5"
 resid-sys = { path = "resid-sys", version = "=1.0.0" }
@@ -52,4 +54,4 @@ strip = true
 
 [package.metadata.winres]
 ProductName = "SID-Device"
-LegalCopyright = "Copyright © 2022 Wilfred Bos"
+LegalCopyright = "Copyright © 2021 - 2023 Wilfred Bos"

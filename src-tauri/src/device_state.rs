@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Wilfred Bos
+// Copyright (C) 2022 - 2023 Wilfred Bos
 // Licensed under the GNU GPL v3 license. See the LICENSE file for the terms and conditions.
 
 use std::sync::Arc;
@@ -10,6 +10,7 @@ pub struct DeviceState {
     pub device_ready: Arc<AtomicBool>,
     pub restart: Arc<AtomicBool>,
     pub quit: Arc<AtomicBool>,
+    pub stopped: Arc<AtomicBool>,
     pub error: Arc<AtomicBool>,
     pub error_msg: Arc<Mutex<String>>
 }
@@ -20,6 +21,7 @@ impl DeviceState {
             device_ready: Arc::new(AtomicBool::new(false)),
             restart: Arc::new(AtomicBool::new(true)),
             quit: Arc::new(AtomicBool::new(false)),
+            stopped: Arc::new(AtomicBool::new(false)),
             error: Arc::new(AtomicBool::new(false)),
             error_msg: Arc::new(Mutex::new(String::new()))
         }
@@ -48,6 +50,7 @@ impl DeviceState {
             device_ready: self.device_ready.clone(),
             restart: self.restart.clone(),
             quit: self.quit.clone(),
+            stopped: self.quit.clone(),
             error: self.error.clone(),
             error_msg: self.error_msg.clone()
         }

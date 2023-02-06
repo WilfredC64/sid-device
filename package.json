@@ -1,7 +1,7 @@
 {
     "name": "sid-device",
     "description": "Network SID Device",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "license": "GPL-3.0",
     "author": "Wilfred Bos",
     "keywords": ["reSID", "SID", "C64", "6581", "8580"],
