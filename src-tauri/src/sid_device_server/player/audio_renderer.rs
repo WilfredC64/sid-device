@@ -417,7 +417,7 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
             PlayerCommand::SetSidCount => {
                 let count = param1.unwrap() as usize;
                 config.sid_count = count as i32;
-                config.chip_model = vec![config.chip_model[0]; count];
+                config.chip_model = vec![config.chip_model[0].clone(); count];
                 config.position_left = vec![0; count];
                 config.position_right = vec![0; count];
 
@@ -498,9 +498,9 @@ fn configure_sids(sids: &mut Vec<Sid>, config: &mut Config) {
     for i in 0..config.sid_count {
         let mut sid = Sid::new();
 
-        sid.set_chip_model(config.chip_model[i as usize]);
+        sid.set_chip_model(config.chip_model[i as usize].clone());
 
-        let _ = sid.set_sampling_parameters(config.clock as f64, config.sampling_method, config.sample_rate as f64);
+        let _ = sid.set_sampling_parameters(config.clock as f64, config.sampling_method.clone(), config.sample_rate as f64);
 
         sid.enable_filter(true);
 
