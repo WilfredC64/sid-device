@@ -1,7 +1,7 @@
 const USE_NEW_FILTER: bool = true;
 
 fn main() -> miette::Result<()> {
-    println!(r"cargo:rustc-link-search=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.31.31103\bin\Hostx86\x86");
+    println!(r"cargo:rustc-link-search=C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.35.32215\bin\Hostx64\x64");
 
     let mut src = vec![
         "src/resid10/dac.cc",
