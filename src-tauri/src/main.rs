@@ -362,7 +362,7 @@ fn create_system_tray(auto_launch_enabled: bool) -> SystemTray {
         .add_native_item(SystemTrayMenuItem::Separator)
         .add_item(menu_item_exit);
 
-    SystemTray::new().with_menu(tray_menu)
+    SystemTray::new().with_tooltip("SID Device").with_menu(tray_menu)
 }
 
 fn show_about_window(app: &AppHandle<Wry>, title: &str) {
