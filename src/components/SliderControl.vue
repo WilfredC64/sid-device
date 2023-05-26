@@ -73,8 +73,10 @@ export default {
         const sliderBarRight = ref(null);
         const sliderValue = ref('sliderValue');
 
-        watch(() => props.currentValue, (val) => {
+        watch(() => props.currentValue, async (val) => {
             if (!movingIndicator) {
+                await isWindowReady();
+
                 if (val === 0) {
                     const sliderBarLeftRef = sliderBarLeft.value;
                     sliderBarLeftRef.style.width = '0%';
@@ -88,6 +90,12 @@ export default {
                 setValueIndicatorPercentage((val - Number(minValue)) / (Number(maxValue) - Number(minValue)));
             }
         });
+
+        const isWindowReady = async () => {
+            while (progress.value.clientWidth === 0) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        }
 
         const getSliderValue = () => {
             if (movingIndicator) {
