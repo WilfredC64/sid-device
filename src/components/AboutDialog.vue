@@ -101,6 +101,7 @@ p {
 }
 
 .title {
+    font-size: 36px;
     padding: 4px 0;
     line-height: 50px;
     color: #3838a0;
