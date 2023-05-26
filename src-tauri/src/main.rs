@@ -263,7 +263,6 @@ fn close_window(app_handle: &AppHandle<Wry>, label_window: &str) {
 }
 
 fn create_dialogs(app: &mut App<Wry>) -> Result<(), Box<dyn std::error::Error>> {
-    let resizable = cfg!(unix);
     let height_correction = if cfg!(target_os = "macos") { 44.0 } else { 0.0 };
 
     WindowBuilder::new(
@@ -273,9 +272,8 @@ fn create_dialogs(app: &mut App<Wry>) -> Result<(), Box<dyn std::error::Error>> 
         .title("SID Device - About")
         .inner_size(600.0, 512.0)
         .min_inner_size(600.0, 512.0 + height_correction)
-        .max_inner_size(600.0, 512.0 + height_correction)
         .center()
-        .resizable(resizable)
+        .resizable(false)
         .fullscreen(false)
         .visible(false)
         .skip_taskbar(true)
@@ -288,9 +286,8 @@ fn create_dialogs(app: &mut App<Wry>) -> Result<(), Box<dyn std::error::Error>> 
         .title("SID Device - Settings")
         .inner_size(600.0, 450.0)
         .min_inner_size(600.0, 450.0 + height_correction)
-        .max_inner_size(600.0, 450.0 + height_correction)
         .center()
-        .resizable(resizable)
+        .resizable(false)
         .fullscreen(false)
         .visible(false)
         .skip_taskbar(true)
