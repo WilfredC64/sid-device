@@ -11,7 +11,7 @@ edition = "2021"
 rust-version = "1.61"
 
 [build-dependencies]
-tauri-build = { version = "=1.2.1", features = [] }
+tauri-build = { version = "1.4.0", features = [] }
 
 [dependencies]
 anyhow = "1.0.71"
@@ -34,9 +34,6 @@ tauri = { version = "1.4.1", features = ["dialog-message", "system-tray"] }
 thread-priority = "0.13.1"
 typed-builder = "0.14.0"
 
-[target.'cfg(windows)'.build-dependencies]
-winres = "0.1"
-
 [features]
 # by default Tauri runs in production mode
 # when `tauri dev` runs it is executed with `cargo run --no-default-features` if `devPath` is an URL
@@ -54,7 +51,3 @@ codegen-units = 1
 lto = true
 opt-level = 3
 strip = true
-
-[package.metadata.winres]
-ProductName = "SID-Device"
-LegalCopyright = "Copyright © 2021 - 2023 Wilfred Bos"
