@@ -80,29 +80,26 @@ impl Settings {
     pub fn save_config(&mut self) {
         *self.last_save.lock() = Instant::now();
 
-        let save_in_progress = self.save_in_progress.load(Ordering::SeqCst);
-        if !save_in_progress {
+        let can_save = self.save_in_progress.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst);
+
+        if can_save.is_ok() {
+            let config_clone = self.config.clone();
             let last_save_clone = self.last_save.clone();
             let save_in_progress_clone = self.save_in_progress.clone();
 
-            let _saving_thread = thread::spawn({
-                self.save_in_progress.store(true, Ordering::SeqCst);
+            let _saving_thread = thread::spawn(move || loop {
+                thread::sleep(Duration::from_millis(100));
 
-                let config_clone = self.config.clone();
-                move || loop {
-                    thread::sleep(Duration::from_millis(100));
-
-                    if last_save_clone.lock().elapsed().as_secs() < WRITE_CONFIG_DELAY_IN_SEC {
-                        continue;
-                    }
-
-                    let config_filename = Self::get_config_filename();
-                    let writer = BufWriter::new(File::create(config_filename).unwrap());
-                    serde_json::to_writer(writer, &*config_clone.lock()).unwrap();
-
-                    save_in_progress_clone.store(false, Ordering::SeqCst);
-                    break;
+                if last_save_clone.lock().elapsed().as_secs() < WRITE_CONFIG_DELAY_IN_SEC {
+                    continue;
                 }
+
+                let config_filename = Self::get_config_filename();
+                let writer = BufWriter::new(File::create(config_filename).unwrap());
+                serde_json::to_writer(writer, &*config_clone.lock()).unwrap();
+
+                save_in_progress_clone.store(false, Ordering::SeqCst);
+                break;
             });
         }
     }
