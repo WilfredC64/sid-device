@@ -17,7 +17,7 @@ cxx = "1.0"
 
 [build-dependencies]
 autocxx-build = "0.25.0"
-miette = { version="5.9.0", features = [ "fancy" ] }
+miette = { version = "5.9.0", features = [ "fancy" ] }
 
 [profile.release]
 panic = "abort"
