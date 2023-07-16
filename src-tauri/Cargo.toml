@@ -16,8 +16,8 @@ tauri-build = { version = "1.4.0", features = [] }
 [dependencies]
 anyhow = "1.0.72"
 app_dirs2 = "2.5.5"
-atomicring = "1.2.9"
 async-broadcast = "0.5.1"
+atomicring = "1.2.9"
 auto-launch = "0.4.0"
 cpal = "0.15.2"
 crossbeam-channel = "0.5.8"
