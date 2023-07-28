@@ -1,7 +1,7 @@
-import { defineConfig } from 'vite'
-import { resolve } from 'path'
-import svgLoader from 'vite-svg-loader'
-import vue from '@vitejs/plugin-vue'
+import { defineConfig } from 'vite';
+import { resolve } from 'path';
+import svgLoader from 'vite-svg-loader';
+import vue from '@vitejs/plugin-vue';
 
 const root = resolve(__dirname, 'src');
 const outDir = resolve(__dirname, 'dist');
@@ -25,5 +25,4 @@ export default defineConfig({
             }
         }
     }
-})
-
+});
