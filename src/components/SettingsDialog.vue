@@ -79,7 +79,6 @@ export default {
         const config = ref({});
         const settings = ref(null);
 
-
         let deviceReady = false
 
         const activateListeners = async () => {
