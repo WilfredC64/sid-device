@@ -19,12 +19,12 @@
         "tauri:build": "tauri build"
     },
     "dependencies": {
-        "@tauri-apps/api": "^1.4.0",
+        "@tauri-apps/api": "^1.5.0",
         "vue": "^3.3.4"
     },
     "devDependencies": {
-        "@tauri-apps/cli": "^1.4.0",
-        "@vitejs/plugin-vue": "^4.3.3",
+        "@tauri-apps/cli": "^1.5.0",
+        "@vitejs/plugin-vue": "^4.3.4",
         "vite": "^4.4.9",
         "vite-svg-loader": "^4.0.0"
     }
