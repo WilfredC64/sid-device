@@ -16,12 +16,12 @@ tauri-build = { version = "1.5.0", features = [] }
 [dependencies]
 anyhow = "1.0.75"
 app_dirs2 = "2.5.5"
-async-broadcast = "0.5.1"
+async-broadcast = "0.6.0"
 atomicring = "1.2.9"
 auto-launch = "0.5.0"
 cpal = "0.15.2"
 crossbeam-channel = "0.5.8"
-futures-lite = "1.13.0"
+futures-lite = "2.0.1"
 hostname = "0.3.1"
 os_info = "3.7.0"
 parking_lot = "0.12.1"
@@ -31,8 +31,8 @@ serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 single-instance = "0.3.3"
 tauri = { version = "1.5.2", features = ["dialog-message", "system-tray"] }
-thread-priority = "0.13.1"
-typed-builder = "0.16.0"
+thread-priority = "0.15.0"
+typed-builder = "0.18.0"
 
 [features]
 # by default Tauri runs in production mode
