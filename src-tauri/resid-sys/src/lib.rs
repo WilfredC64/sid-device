@@ -2,6 +2,7 @@
 // Licensed under the GNU GPL v3 license. See the LICENSE file for the terms and conditions.
 
 #![allow(clippy::upper_case_acronyms)]
+#![allow(unused_imports)]
 use autocxx::prelude::*;
 
 use ffi::reSID::*;
