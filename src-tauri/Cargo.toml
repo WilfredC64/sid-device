@@ -11,17 +11,17 @@ edition = "2021"
 rust-version = "1.61"
 
 [build-dependencies]
-tauri-build = { version = "1.5.0", features = [] }
+tauri-build = { version = "1.5.1", features = [] }
 
 [dependencies]
-anyhow = "1.0.77"
+anyhow = "1.0.79"
 app_dirs2 = "2.5.5"
 async-broadcast = "0.6.0"
 atomicring = "1.2.9"
 auto-launch = "0.5.0"
 cpal = "0.15.2"
-crossbeam-channel = "0.5.10"
-futures-lite = "2.1.0"
+crossbeam-channel = "0.5.11"
+futures-lite = "2.2.0"
 hostname = "0.3.1"
 os_info = "3.7.0"
 parking_lot = "0.12.1"
@@ -32,7 +32,7 @@ serde = { version = "1.0", features = ["derive"] }
 single-instance = "0.3.3"
 tauri = { version = "1.5.4", features = ["dialog-message", "system-tray"] }
 thread-priority = "0.15.1"
-typed-builder = "0.18.0"
+typed-builder = "0.18.1"
 
 [features]
 # by default Tauri runs in production mode
