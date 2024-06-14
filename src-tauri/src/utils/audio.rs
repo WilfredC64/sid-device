@@ -24,7 +24,7 @@ pub fn get_available_audio_output_devices() -> Vec<Device> {
     let host = cpal::default_host();
 
     if let Ok(devices) = host.output_devices() {
-        devices.enumerate().map(|(_size, device)| device).collect()
+        devices.collect()
     } else {
         vec![host.default_output_device().expect("Failed to find a default output device")]
     }
