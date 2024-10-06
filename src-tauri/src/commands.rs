@@ -1,18 +1,17 @@
-// Copyright (C) 2022 Wilfred Bos
+// Copyright (C) 2022 - 2024 Wilfred Bos
 // Licensed under the GNU GPL v3 license. See the LICENSE file for the terms and conditions.
 
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 
 use async_broadcast::Sender;
-use futures_lite::{future::block_on};
+use futures_lite::future::block_on;
 use parking_lot::Mutex;
-use tauri::{AppHandle, command, State, Window, Wry};
+use tauri::{command, Emitter, State, WebviewWindow, Wry};
 
 use crate::device_state::DeviceState;
-use crate::{Config, Settings, SettingsCommand};
-use crate::toggle_launch_at_start;
 use crate::utils::audio;
+use crate::{Config, Settings, SettingsCommand};
 
 #[derive(serde::Serialize)]
 pub struct DevicesResponse {
@@ -40,14 +39,13 @@ pub fn change_filter_bias_6581_cmd(filter_bias_6581: i32, settings: State<'_, Ar
     });
 }
 
-
 #[command]
-pub fn toggle_launch_at_start_cmd(app_handle: AppHandle<Wry>, settings: State<'_, Arc<Mutex<Settings>>>) {
-    toggle_launch_at_start(&app_handle.tray_handle(), &settings, "launch at startup");
+pub fn toggle_launch_at_start_cmd(settings: State<'_, Arc<Mutex<Settings>>>) {
+    settings.lock().toggle_launch_at_start();
 }
 
 #[command]
-pub fn reset_to_default_cmd(window: Window<Wry>, device_state: State<'_, DeviceState>, settings: State<'_, Arc<Mutex<Settings>>>) {
+pub fn reset_to_default_cmd(window: WebviewWindow<Wry>, device_state: State<'_, DeviceState>, settings: State<'_, Arc<Mutex<Settings>>>) {
     settings.lock().reset_config();
     device_state.reset();
 

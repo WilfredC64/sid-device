@@ -9,7 +9,7 @@ SID-Device can be used by SID-players like
 [ACID 64 console player](https://github.com/WilfredC64/acid64c) and
 [JSidplay2](https://sourceforge.net/projects/jsidplay2/).
 
-SID-Device v1.0 uses the emulation engine reSID 1.0 that is included in the Commodore 64 emulator Vice.
+SID-Device uses the emulation engine reSID 1.0 that is included in the Commodore 64 emulator Vice.
 
 This project started with the goal to turn a Raspberry Pi
 into a SID device.
@@ -59,9 +59,9 @@ Thanks to Ken H&auml;ndel and Antti S. Lankila for creating the network SID inte
 
 ## Copyright
 
-SID Device &ndash; Copyright &#xa9; 2021 - 2023 by Wilfred Bos
+SID Device &ndash; Copyright &#xa9; 2021 - 2024 by Wilfred Bos
 
-Network SID Interface &ndash; Copyright &#xa9; 2007 - 2023
+Network SID Interface &ndash; Copyright &#xa9; 2007 - 2024
 by Wilfred Bos, Ken H&auml;ndel and Antti S. Lankila
 
 reSID v1.0 &ndash; Copyright &#xa9; 1998 - 2023 by Dag Lem

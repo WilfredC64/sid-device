@@ -1,5 +1,5 @@
 <!--
-  Copyright (C) 2022 Wilfred Bos
+  Copyright (C) 2022 - 2024 Wilfred Bos
   Licensed under the GNU GPL v3 license. See the LICENSE file for the terms and conditions.
 -->
 
@@ -66,7 +66,8 @@
 <script>
 
 import { emit, listen } from '@tauri-apps/api/event';
-import { invoke } from '@tauri-apps/api/tauri'
+import { invoke } from '@tauri-apps/api/core'
+import { ask } from '@tauri-apps/plugin-dialog';
 import { ref } from 'vue'
 import CheckBox from './CheckBox.vue'
 import SelectBox from './SelectBox.vue'
@@ -86,8 +87,17 @@ export default {
                 deviceReady = true;
             });
 
-            await listen('blur', async () => {
-                document.activeElement.blur();
+            await listen('error', async (message) => {
+                const answer = await ask(message.payload + '\r\rTry again?', {
+                    title: 'SID-Device Error',
+                    kind: 'info',
+                });
+
+                if (answer) {
+                    await emit('retry');
+                } else {
+                    await emit('exit');
+                }
             });
 
             await listen('show', async () => {
@@ -125,7 +135,7 @@ export default {
 
                 if (config.value.audio_device_number == null || config.value.audio_device_number >= deviceList.value.length) {
                     config.value.audio_device_number = 0;
-                    invoke('change_audio_device_cmd', { deviceIndex: 0 });
+                    invoke('change_audio_device_cmd', {deviceIndex: 0});
                 }
             });
         }
@@ -150,7 +160,7 @@ export default {
 
         const changeAudioDevice = (deviceId) => {
             config.value.audio_device_number = Number(deviceId);
-            invoke('change_audio_device_cmd', { deviceIndex: Number(deviceId) });
+            invoke('change_audio_device_cmd', {deviceIndex: Number(deviceId)});
         };
 
         const toggleLaunchAtStart = (event) => {
@@ -161,20 +171,20 @@ export default {
         const enableDigiBoost = (event) => {
             const enabled = event.target.checked;
             config.value.digiboost_enabled = enabled;
-            invoke('enable_digiboost_cmd', { digiBoostEnabled: enabled });
+            invoke('enable_digiboost_cmd', {digiBoostEnabled: enabled});
         };
 
         const allowExternalIp = (event) => {
             const enabled = event.target.checked;
             config.value.allow_external_connections = enabled;
-            invoke('allow_external_ip_cmd', { externalIpAllowed: enabled });
+            invoke('allow_external_ip_cmd', {externalIpAllowed: enabled});
 
             isDeviceReady();
         };
 
         const setFilter6581 = (filterValue) => {
             config.value.filter_bias_6581 = filterValue;
-            invoke('change_filter_bias_6581_cmd', { filterBias6581: filterValue });
+            invoke('change_filter_bias_6581_cmd', {filterBias6581: filterValue});
         };
 
         const handleKeyUpResetDefault = (event) => {

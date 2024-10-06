@@ -1,0 +1,12 @@
+{
+  "identifier": "default",
+  "description": "Capabilities for the app",
+  "windows": [
+    "about",
+    "settings"
+  ],
+  "permissions": [
+    "core:default",
+    "dialog:default"
+  ]
+}

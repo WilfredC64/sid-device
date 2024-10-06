@@ -1,63 +1,56 @@
 {
-    "package": {
-        "productName": "sid-device",
-        "version": "1.0.1"
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [],
+    "externalBin": [],
+    "copyright": "Copyright © 2021 - 2024 Wilfred Bos",
+    "category": "Music",
+    "shortDescription": "",
+    "longDescription": "",
+    "linux": {
+      "deb": {
+        "depends": []
+      }
     },
-    "build": {
-        "distDir": "../dist",
-        "devPath": "http://localhost:5173",
-        "beforeDevCommand": "npm run dev",
-        "beforeBuildCommand": "npm run build"
+    "macOS": {
+      "frameworks": [],
+      "exceptionDomain": "",
+      "signingIdentity": null,
+      "providerShortName": null,
+      "entitlements": null
     },
-    "tauri": {
-        "bundle": {
-            "active": true,
-            "targets": "all",
-            "identifier": "com.siddevice",
-            "icon": [
-                "icons/32x32.png",
-                "icons/128x128.png",
-                "icons/128x128@2x.png",
-                "icons/icon.icns",
-                "icons/icon.ico"
-            ],
-            "resources": [],
-            "externalBin": [],
-            "copyright": "Copyright © 2021 - 2023 Wilfred Bos",
-            "category": "Music",
-            "shortDescription": "",
-            "longDescription": "",
-            "deb": {
-                "depends": []
-            },
-            "macOS": {
-                "frameworks": [],
-                "exceptionDomain": "",
-                "signingIdentity": null,
-                "providerShortName": null,
-                "entitlements": null
-            },
-            "windows": {
-                "certificateThumbprint": null,
-                "digestAlgorithm": "sha256",
-                "timestampUrl": ""
-            }
-        },
-        "updater": {
-            "active": false
-        },
-        "allowlist": {
-            "all": false,
-            "dialog": {
-                "message": true
-            }
-        },
-        "systemTray": {
-            "iconPath": "icons/icon.ico",
-            "iconAsTemplate": true
-        },
-        "security": {
-            "csp": "default-src 'self'"
-        }
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "sidebarImage": "assets/sid_device_installer_sidebar.bmp"
+      },
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
     }
+  },
+  "build": {
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist",
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173"
+  },
+  "productName": "sid-device",
+  "mainBinaryName": "sid-device",
+  "version": "1.0.2",
+  "identifier": "siddevice",
+  "plugins": {},
+  "app": {
+    "security": {
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost"
+    }
+  }
 }

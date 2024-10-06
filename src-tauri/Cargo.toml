@@ -1,6 +1,6 @@
 [package]
 name = "sid-device"
-version = "1.0.1"
+version = "1.0.2"
 description = "Network SID Device"
 keywords = ["siddevice", "c64", "sid", "sid-6581", "sid-8580"]
 authors = ["Wilfred Bos"]
@@ -11,7 +11,7 @@ edition = "2021"
 rust-version = "1.61"
 
 [build-dependencies]
-tauri-build = { version = "1.5.5", features = [] }
+tauri-build = { version = "2.0.1", features = [] }
 
 [dependencies]
 anyhow = "1.0.89"
@@ -23,6 +23,7 @@ cpal = "0.15.3"
 crossbeam-channel = "0.5.13"
 futures-lite = "2.3.0"
 hostname = "0.4.0"
+hyper-tls = "0.6.0"
 os_info = "3.8.2"
 parking_lot = "0.12.3"
 rand = "0.8.5"
@@ -30,7 +31,8 @@ resid-sys = { path = "resid-sys", version = "=1.0.0" }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 single-instance = "0.3.3"
-tauri = { version = "1.8.0", features = ["dialog-message", "system-tray"] }
+tauri = { version = "2.0.1", features = ["tray-icon"] }
+tauri-plugin-dialog = "2.0.1"
 thread-priority = "1.1.0"
 typed-builder = "0.20.0"
 
