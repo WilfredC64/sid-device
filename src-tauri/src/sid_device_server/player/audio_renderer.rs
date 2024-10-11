@@ -162,7 +162,6 @@ impl AudioRenderer {
         self.should_stop_audio_generator.store(false, Ordering::SeqCst);
     }
 
-
     fn stop_audio_producer_thread(&mut self) {
         self.should_stop_audio_producer.store(true, Ordering::SeqCst);
 
