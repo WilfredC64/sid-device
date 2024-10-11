@@ -17,7 +17,7 @@ include_cpp! {
 const FILTER_SCALE: f64 = 0.97;
 
 pub struct Sid {
-    sid: cxx::UniquePtr<SID>
+    sid: UniquePtr<SID>
 }
 
 impl Default for Sid {
@@ -28,12 +28,7 @@ impl Default for Sid {
 
 impl Sid {
     pub fn new() -> Self {
-        let mut sid = Sid {
-            sid: SID::new().within_unique_ptr()
-        };
-        // always call adjust_filter_bias to ensure all buffers are initialized
-        sid.adjust_filter_bias(0.0);
-        sid
+        Sid { sid: SID::new().within_unique_ptr() }
     }
 
     pub fn adjust_filter_bias(&mut self, dac_bias: f64) {
