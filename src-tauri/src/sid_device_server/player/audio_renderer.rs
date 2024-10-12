@@ -642,12 +642,13 @@ where
         println!("ERROR: {err}\r");
     };
 
-    let mut next_value = move || {
-       sound_buffer.try_pop().unwrap_or(0)
-    };
-
     let output_stream = move |data: &mut [T], _: &OutputCallbackInfo| {
-        write_data(data, channels, &mut next_value)
+        for frame in data.chunks_mut(channels) {
+            for sample_slot in frame.iter_mut() {
+                let sample_value = sound_buffer.try_pop().unwrap_or(0);
+                *sample_slot = T::from_sample(sample_value);
+            }
+        }
     };
 
     let stream = device.build_output_stream(config, output_stream, err_fn, None)?;
@@ -663,15 +664,4 @@ where
     }
 
     Ok(())
-}
-
-fn write_data<T>(output: &mut [T], channels: usize, next_value: &mut dyn FnMut() -> i16)
-where
-    T: SizedSample + FromSample<i16>
-{
-    for frame in output.chunks_mut(channels) {
-        for sample in frame.iter_mut() {
-            *sample = T::from_sample(next_value());
-        }
-    }
 }
