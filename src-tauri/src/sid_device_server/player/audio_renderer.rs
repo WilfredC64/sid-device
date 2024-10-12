@@ -652,14 +652,19 @@ where
     };
 
     let stream = device.build_output_stream(config, output_stream, err_fn, None)?;
-    stream.play()?;
+    let mut is_paused = true;
 
     while !should_stop.load(Ordering::SeqCst) {
-        if should_pause.load(Ordering::SeqCst) {
-            stream.pause()?;
-        } else {
-            stream.play()?;
+        let should_pause_now = should_pause.load(Ordering::SeqCst);
+        if should_pause_now != is_paused {
+            if should_pause_now {
+                stream.pause()?;
+            } else {
+                stream.play()?;
+            }
+            is_paused = should_pause_now;
         }
+
         thread::sleep(Duration::from_millis(STOP_PAUSE_LATENCY_IN_MILLIS));
     }
 
