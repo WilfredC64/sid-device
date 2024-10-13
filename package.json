@@ -25,7 +25,7 @@
         "vue": "^3.5.12"
     },
     "devDependencies": {
-        "@tauri-apps/cli": "^2.0.2",
+        "@tauri-apps/cli": "^2.0.3",
         "@vitejs/plugin-vue": "^5.1.4",
         "vite": "^5.4.8",
         "vite-svg-loader": "^5.1.0"
