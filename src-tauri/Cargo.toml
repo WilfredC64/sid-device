@@ -14,7 +14,7 @@ rust-version = "1.61"
 tauri-build = { version = "2.0.1", features = [] }
 
 [dependencies]
-anyhow = "1.0.89"
+anyhow = "1.0.90"
 app_dirs2 = "2.5.5"
 async-broadcast = "0.7.1"
 atomicring = "1.2.9"
