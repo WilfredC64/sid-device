@@ -20,11 +20,9 @@ use std::{thread, time::Duration};
 use async_broadcast::{broadcast, Receiver, Sender};
 use parking_lot::Mutex;
 use single_instance::SingleInstance;
-use tauri::{
-    tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
-    App, AppHandle, Emitter, Listener, Manager, RunEvent, WebviewUrl, WebviewWindow,
-    WebviewWindowBuilder, WindowEvent, Wry,
-};
+use tauri::{tray::{MouseButton, TrayIconBuilder, TrayIconEvent}, App, AppHandle, Emitter, Listener, Manager, RunEvent, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent, Wry};
+#[cfg(target_os = "macos")]
+use tauri::ActivationPolicy;
 
 use commands::{
     allow_external_ip_cmd,
@@ -91,6 +89,12 @@ fn main() {
         })
         .build(tauri::generate_context!())
         .expect("error while building application");
+
+    #[cfg(target_os = "macos")]
+    let mut app = app;
+
+    #[cfg(target_os = "macos")]
+    app.set_activation_policy(ActivationPolicy::Accessory);
 
     app.run({
         move |app_handle, e| match e {
@@ -267,7 +271,6 @@ fn setup_listeners(app: &mut App<Wry>, settings: &Arc<Mutex<Settings>>) {
     settings_window.listen("device-ready", {
         let app_handle = app_handle.clone();
         let settings_window_clone = settings_window.clone();
-        let settings = settings.clone();
 
         move |_event| {
             let device_state = app_handle.state::<DeviceState>();
@@ -279,12 +282,14 @@ fn setup_listeners(app: &mut App<Wry>, settings: &Arc<Mutex<Settings>>) {
                     let msg = device_state.error_msg.lock().to_owned();
                     settings_window_clone.emit("error", Some(msg)).unwrap();
                 } else {
-                    create_system_tray(&app_handle, &settings);
+                    app_handle.tray_by_id("sid_device_tray_icon").unwrap().set_visible(true).unwrap();
                     settings_window_clone.emit("ready", None::<String>).unwrap();
                 }
             }
         }
     });
+
+    create_system_tray(app_handle, settings);
 
     let _id = settings_window.listen("retry", {
         let app_handle = app_handle.clone();
@@ -351,6 +356,8 @@ fn create_system_tray(app: &AppHandle<Wry>, settings: &Arc<Mutex<Settings>>) {
             }
         })
         .build(app)
+        .unwrap()
+        .set_visible(false)
         .unwrap();
 }
 
