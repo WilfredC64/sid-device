@@ -1,19 +1,21 @@
-// Copyright (C) 2022 - 2023 Wilfred Bos
+// Copyright (C) 2022 - 2024 Wilfred Bos
 // Licensed under the GNU GPL v3 license. See the LICENSE file for the terms and conditions.
 
 use std::fs::File;
 use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
 use app_dirs2::*;
-use auto_launch::{AutoLaunch, AutoLaunchBuilder};
 use parking_lot::Mutex;
 
-const APP_INFO: AppInfo = AppInfo{ name: "siddevice", author: "siddevice" };
+const APP_INFO: AppInfo = AppInfo {
+    name: "siddevice",
+    author: "siddevice",
+};
 const CONFIG_FILE_NAME: &str = "config.json";
 const DEFAULT_FILTER_BIAS_6581: i32 = 24;
 const WRITE_CONFIG_DELAY_IN_SEC: u64 = 2;
@@ -50,7 +52,6 @@ impl Config {
 
 pub struct Settings {
     config: Arc<Mutex<Config>>,
-    auto_launch: AutoLaunch,
     save_in_progress: Arc<AtomicBool>,
     last_save: Arc<Mutex<Instant>>
 }
@@ -59,18 +60,9 @@ impl Settings {
     pub fn new() -> Settings {
         let save_in_progress = Arc::new(AtomicBool::new(false));
         let last_save = Arc::new(Mutex::new(Instant::now()));
-
-        let auto_launch = AutoLaunchBuilder::new()
-            .set_app_name("sid-device")
-            .set_app_path(std::env::current_exe().unwrap().to_str().unwrap())
-            .set_use_launch_agent(true)
-            .build()
-            .unwrap();
-
-        let config = Arc::new(Mutex::new(Self::load_config(auto_launch.is_enabled().unwrap())));
+        let config = Arc::new(Mutex::new(Self::load_config(false)));
 
         Settings {
-            auto_launch,
             config,
             save_in_progress,
             last_save
@@ -109,22 +101,14 @@ impl Settings {
     }
 
     pub fn reset_config(&mut self) {
-        self.config = Arc::new(Mutex::new(Self::get_default_config(self.auto_launch.is_enabled().unwrap())));
+        let auto_launch_enabled = self.config.lock().launch_at_start_enabled;
+        self.config = Arc::new(Mutex::new(Self::get_default_config(auto_launch_enabled)));
         self.save_config();
     }
 
-    pub fn toggle_launch_at_start(&mut self) -> bool {
-        let auto_launch_enabled = self.auto_launch.is_enabled().unwrap();
-        if auto_launch_enabled {
-            self.auto_launch.disable().unwrap();
-        } else {
-            self.auto_launch.enable().unwrap();
-        }
-
+    pub fn set_launch_at_start(&mut self, enabled: bool) {
         let mut config = self.config.lock();
-        config.launch_at_start_enabled = !auto_launch_enabled;
-
-        !auto_launch_enabled
+        config.launch_at_start_enabled = enabled;
     }
 
     fn get_config_filename() -> PathBuf {

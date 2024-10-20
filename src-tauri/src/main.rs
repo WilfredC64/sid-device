@@ -13,16 +13,20 @@ mod sid_device_listener;
 mod sid_device_server;
 mod utils;
 
-use std::process::exit;
+use async_broadcast::{broadcast, Receiver, Sender};
+use parking_lot::Mutex;
+
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::{thread, time::Duration};
-use async_broadcast::{broadcast, Receiver, Sender};
-use parking_lot::Mutex;
-use single_instance::SingleInstance;
-use tauri::{tray::{MouseButton, TrayIconBuilder, TrayIconEvent}, App, AppHandle, Emitter, Listener, Manager, RunEvent, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent, Wry};
+
 #[cfg(target_os = "macos")]
 use tauri::ActivationPolicy;
+use tauri::{
+    tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
+    App, AppHandle, Emitter, Listener, Manager, RunEvent, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder, WindowEvent, Wry,
+};
 
 use commands::{
     allow_external_ip_cmd,
@@ -37,6 +41,8 @@ use commands::{
 use settings::Settings;
 use sid_device_server::SidDeviceServer;
 use tauri::menu::{CheckMenuItem, MenuBuilder};
+#[cfg(desktop)]
+use tauri_plugin_autostart::ManagerExt;
 
 use crate::device_state::DeviceState;
 use crate::settings::Config;
@@ -53,19 +59,11 @@ pub enum SettingsCommand {
 }
 
 fn main() {
-    let instance = SingleInstance::new("sid-device").unwrap();
-    if !instance.is_single() {
-        println!("ERROR: SID Device is already running\r");
-        exit(1);
-    }
-
     let (mut device_sender, device_receiver): SidDeviceChannel = broadcast(1);
     device_sender.set_overflow(true);
 
     let settings = Arc::new(Mutex::new(Settings::new()));
-
-    let device_state = start_sid_device_thread(device_receiver, &settings);
-    start_sid_device_detect_thread(&device_state, &settings);
+    let device_state = DeviceState::new();
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -83,6 +81,17 @@ fn main() {
             get_config_cmd
         ])
         .setup(move |app| {
+            #[cfg(desktop)]
+            {
+                app.handle().plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {})).unwrap();
+                app.handle().plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None)).unwrap();
+                settings.lock().set_launch_at_start(app.app_handle().autolaunch().is_enabled().unwrap());
+            }
+
+            let device_state = app.app_handle().state::<DeviceState>();
+            start_sid_device_thread(device_receiver, &settings, &device_state);
+            start_sid_device_detect_thread(&device_state, &settings);
+
             create_dialogs(app)?;
             setup_listeners(app, &settings);
             Ok(())
@@ -117,9 +126,7 @@ fn main() {
     });
 }
 
-fn start_sid_device_thread(receiver: Receiver<(SettingsCommand, Option<i32>)>, settings: &Arc<Mutex<Settings>>) -> DeviceState {
-    let device_state = DeviceState::new();
-
+fn start_sid_device_thread(receiver: Receiver<(SettingsCommand, Option<i32>)>, settings: &Arc<Mutex<Settings>>, device_state: &DeviceState) {
     let _sid_device_thread = thread::spawn({
         let settings_clone = settings.clone();
         let device_state = device_state.clone();
@@ -128,8 +135,6 @@ fn start_sid_device_thread(receiver: Receiver<(SettingsCommand, Option<i32>)>, s
             sid_device_loop(receiver, &settings_clone, device_state);
         }
     });
-
-    device_state
 }
 
 fn sid_device_loop(receiver: Receiver<(SettingsCommand, Option<i32>)>, settings: &Arc<Mutex<Settings>>, device_state: DeviceState) {
@@ -209,8 +214,16 @@ fn handle_menu_item_click(app_handle: &AppHandle<Wry>, id: &str, settings: &Arc<
             show_settings_window(app_handle, "settings", &settings.lock().get_config().lock());
         }
         "launch_at_startup" => {
-            settings.lock().toggle_launch_at_start();
-
+            #[cfg(desktop)]
+            {
+                if app_handle.autolaunch().is_enabled().unwrap() {
+                    app_handle.autolaunch().disable().unwrap();
+                    settings.lock().set_launch_at_start(false);
+                } else {
+                    app_handle.autolaunch().enable().unwrap();
+                    settings.lock().set_launch_at_start(true);
+                }
+            }
             let settings_window = app_handle.get_webview_window("settings");
             settings_window.unwrap().emit("update-settings", &*settings.lock().get_config().lock()).unwrap();
         }

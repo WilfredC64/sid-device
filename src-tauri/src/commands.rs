@@ -7,7 +7,10 @@ use std::sync::Arc;
 use async_broadcast::Sender;
 use futures_lite::future::block_on;
 use parking_lot::Mutex;
-use tauri::{command, Emitter, State, WebviewWindow, Wry};
+use tauri::{command, AppHandle, Emitter, State, WebviewWindow, Wry};
+
+#[cfg(desktop)]
+use tauri_plugin_autostart::ManagerExt;
 
 use crate::device_state::DeviceState;
 use crate::utils::audio;
@@ -40,8 +43,17 @@ pub fn change_filter_bias_6581_cmd(filter_bias_6581: i32, settings: State<'_, Ar
 }
 
 #[command]
-pub fn toggle_launch_at_start_cmd(settings: State<'_, Arc<Mutex<Settings>>>) {
-    settings.lock().toggle_launch_at_start();
+pub fn toggle_launch_at_start_cmd(app_handle: AppHandle<Wry>, settings: State<'_, Arc<Mutex<Settings>>>) {
+    #[cfg(desktop)]
+    {
+        let autolaunch_enabled = app_handle.autolaunch().is_enabled().unwrap();
+        if autolaunch_enabled {
+            app_handle.autolaunch().disable().unwrap();
+        } else {
+            app_handle.autolaunch().enable().unwrap();
+        }
+        settings.lock().set_launch_at_start(!autolaunch_enabled);
+    }
 }
 
 #[command]
