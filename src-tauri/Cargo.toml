@@ -11,16 +11,16 @@ edition = "2021"
 rust-version = "1.61"
 
 [build-dependencies]
-tauri-build = { version = "2.0.1", features = [] }
+tauri-build = { version = "2.0.2", features = [] }
 
 [dependencies]
-anyhow = "1.0.91"
+anyhow = "1.0.93"
 app_dirs2 = "2.5.5"
 async-broadcast = "0.7.1"
 atomicring = "1.2.9"
 cpal = "0.15.3"
 crossbeam-channel = "0.5.13"
-futures-lite = "2.3.0"
+futures-lite = "2.5.0"
 hostname = "0.4.0"
 hyper-tls = "0.6.0"
 os_info = "3.8.2"
@@ -30,8 +30,8 @@ resid-sys = { path = "resid-sys", version = "=1.0.0" }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "2.0.6", features = [ "tray-icon"] }
-tauri-plugin-dialog = "2.0.2"
-thread-priority = "1.1.0"
+tauri-plugin-dialog = "2.0.3"
+thread-priority = "1.2.0"
 typed-builder = "0.20.0"
 
 [target."cfg(not(any(target_os = \"android\", target_os = \"ios\")))".dependencies]
