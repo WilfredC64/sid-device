@@ -6,6 +6,7 @@ edition = "2021"
 license = "GPL-3.0-or-later"
 keywords = ["reSID", "SID", "C64", "6581", "8580"]
 links = "resid"
+build = "build.rs"
 
 [lib]
 name = "resid"

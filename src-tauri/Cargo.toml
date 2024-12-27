@@ -14,15 +14,15 @@ rust-version = "1.61"
 tauri-build = { version = "2.0.3", features = [] }
 
 [dependencies]
-anyhow = "1.0.94"
+anyhow = "1.0.95"
 app_dirs2 = "2.5.5"
-async-broadcast = "0.7.1"
+async-broadcast = "0.7.2"
 atomicring = "1.2.9"
 cpal = "0.15.3"
 crossbeam-channel = "0.5.14"
 futures-lite = "2.5.0"
 hostname = "0.4.0"
-os_info = "3.9.0"
+os_info = "3.9.1"
 parking_lot = "0.12.3"
 rand = "0.8.5"
 resid-sys = { path = "resid-sys", version = "=1.0.0" }
