@@ -23,7 +23,6 @@ fn main() -> miette::Result<()> {
         .define("VERSION", Some("\"1.0\""))
         .define("NEW_8580_FILTER", Some(if USE_NEW_FILTER {"1"} else {"0"}))
         .files(src)
-        .flag_if_supported("-std=c++14")
         .flag_if_supported("-Wno-psabi")
         .warnings(false)
         .compile("resid");
