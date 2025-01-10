@@ -15,13 +15,7 @@ import { getCurrentWindow  } from "@tauri-apps/api/window";
 
 export default {
     name: 'TitleBar',
-    props: {
-        parent: {
-            type: Object,
-            required: false
-        }
-    },
-    setup(props) {
+    setup() {
         const hideButtonTimer = ref(null);
         const closeButton = ref();
         const appWindow = getCurrentWindow();
@@ -70,19 +64,13 @@ export default {
             }
         };
 
-        watch(() => props.parent, (parent) => {
-            if (parent) {
-                parent.addEventListener('mousemove', enableCloseButton);
-                parent.addEventListener('mouseleave', hideCloseButton);
-            }
-        }, { immediate: true });
-
         onBeforeUnmount(() => {
-            if (props.parent) {
-                props.parent.removeEventListener('mousemove', enableCloseButton);
-                props.parent.removeEventListener('mouseleave', hideCloseButton);
-            }
+            document.removeEventListener('mousemove', enableCloseButton);
+            document.removeEventListener('mouseleave', hideCloseButton);
         });
+
+        document.addEventListener('mousemove', enableCloseButton);
+        document.addEventListener('mouseleave', hideCloseButton);
 
         return {
             closeWindow,
@@ -95,6 +83,7 @@ export default {
         };
     }
 };
+
 </script>
 
 <style scoped>

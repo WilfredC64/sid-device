@@ -5,7 +5,7 @@
 
 <template>
     <div id="about" ref="about">
-        <TitleBar :parent="about" />
+        <TitleBar />
         <div id="content">
             <img alt="Sid-Device logo" class="logo" draggable="false" ondragstart="return false;" src="../assets/sid_device_256x256.png">
             <div class="title-wrapper">

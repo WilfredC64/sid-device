@@ -5,7 +5,7 @@
 
 <template>
     <div id="settings" ref="settings">
-        <TitleBar :parent="settings" />
+        <TitleBar />
         <div class="properties">
             <p>
                 <select-box
