@@ -22,7 +22,7 @@ cpal = "0.15.3"
 crossbeam-channel = "0.5.14"
 futures-lite = "2.5.0"
 hostname = "0.4.0"
-os_info = "3.9.1"
+os_info = "3.9.2"
 parking_lot = "0.12.3"
 rand = "0.8.5"
 resid-sys = { path = "resid-sys", version = "=1.0.0" }
