@@ -1,10 +1,11 @@
 <!--
-  Copyright (C) 2022 - 2024 Wilfred Bos
+  Copyright (C) 2022 - 2025 Wilfred Bos
   Licensed under the GNU GPL v3 license. See the LICENSE file for the terms and conditions.
 -->
 
 <template>
     <div id="settings" ref="settings">
+        <TitleBar :parent="settings" />
         <div class="properties">
             <p>
                 <select-box
@@ -72,6 +73,7 @@ import { ref } from 'vue'
 import CheckBox from './CheckBox.vue'
 import SelectBox from './SelectBox.vue'
 import SliderControl from './SliderControl.vue'
+import TitleBar from './TitleBar.vue';
 
 export default {
     name: 'SettingsDialog',
@@ -80,7 +82,7 @@ export default {
         const config = ref({});
         const settings = ref(null);
 
-        let deviceReady = false
+        let deviceReady = false;
 
         const activateListeners = async () => {
             await listen('ready', async () => {
@@ -214,7 +216,8 @@ export default {
     components: {
         CheckBox,
         SelectBox,
-        SliderControl
+        SliderControl,
+        TitleBar
     }
 }
 
@@ -234,7 +237,7 @@ export default {
 }
 
 .properties {
-    padding: 30px 20px;
+    padding: 42px 20px 30px 20px;
 }
 
 .bottom-settings {

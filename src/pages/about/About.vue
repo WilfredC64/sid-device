@@ -4,7 +4,7 @@
 -->
 
 <template>
-  <AboutDialog/>
+    <AboutDialog/>
 </template>
 
 <script>

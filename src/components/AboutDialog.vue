@@ -1,10 +1,11 @@
 <!--
-  Copyright (C) 2022 - 2024 Wilfred Bos
+  Copyright (C) 2022 - 2025 Wilfred Bos
   Licensed under the GNU GPL v3 license. See the LICENSE file for the terms and conditions.
 -->
 
 <template>
     <div id="about" ref="about">
+        <TitleBar :parent="about" />
         <div id="content">
             <img alt="Sid-Device logo" class="logo" draggable="false" ondragstart="return false;" src="../assets/sid_device_256x256.png">
             <div class="title-wrapper">
@@ -12,7 +13,7 @@
             </div>
             <div class="credits">
                 <p>
-                    Copyright &#xa9; 2021 - 2024 by Wilfred Bos
+                    Copyright &#xa9; 2021 - 2025 by Wilfred Bos
                 </p>
                 <p>
                     Network SID Interface &ndash; Copyright &#xa9; 2007 - 2024
@@ -30,7 +31,8 @@
 <script>
 
 import { listen } from '@tauri-apps/api/event';
-import { ref } from 'vue'
+import { ref } from 'vue';
+import TitleBar from './TitleBar.vue';
 
 export default {
     name: 'AboutDialog',
@@ -56,6 +58,9 @@ export default {
         return {
             about
         }
+    },
+    components: {
+        TitleBar
     }
 }
 

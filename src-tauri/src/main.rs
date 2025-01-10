@@ -248,13 +248,12 @@ fn hide_window(app_handle: &AppHandle<Wry>, label_window: &str) {
 }
 
 fn create_dialogs(app: &mut App<Wry>) -> Result<(), Box<dyn std::error::Error>> {
-    let height_correction = if cfg!(target_os = "macos") { 44.0 } else { 0.0 };
-
     WebviewWindowBuilder::new(app, "about", WebviewUrl::App("/pages/about/index.html".into()))
         .title("SID Device - About")
         .inner_size(600.0, 512.0)
-        .min_inner_size(600.0, 512.0 + height_correction)
+        .min_inner_size(600.0, 512.0)
         .center()
+        .decorations(false)
         .maximizable(false)
         .resizable(false)
         .fullscreen(false)
@@ -265,8 +264,9 @@ fn create_dialogs(app: &mut App<Wry>) -> Result<(), Box<dyn std::error::Error>> 
     WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("/pages/settings/index.html".into()))
         .title("SID Device - Settings")
         .inner_size(600.0, 450.0)
-        .min_inner_size(600.0, 450.0 + height_correction)
+        .min_inner_size(600.0, 450.0)
         .center()
+        .decorations(false)
         .maximizable(false)
         .resizable(false)
         .fullscreen(false)
