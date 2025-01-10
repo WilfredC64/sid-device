@@ -5,7 +5,7 @@
 
 <template>
     <div id="title-bar" data-tauri-drag-region @mousedown="startDragging"></div>
-    <div ref="closeButton" id="close-button" @mousemove="keepButtonVisible" @mouseleave="enableCloseButton" @click="closeWindow">&#10005;</div>
+    <div ref="closeButton" id="close-button" :class="'disable-close-button'" @mousemove="keepButtonVisible" @mouseleave="enableCloseButton" @click="closeWindow">&#10005;</div>
 </template>
 
 <script>
@@ -22,8 +22,7 @@ export default {
 
         const closeWindow = () => {
             if (closeButton.value) {
-                closeButton.value.style.transition = undefined;
-                closeButton.value.style.opacity = 0;
+                closeButton.value.classList.add('disable-close-button');
             }
             appWindow.close();
         };
@@ -49,8 +48,7 @@ export default {
 
         const showCloseButton = () => {
             if (closeButton.value) {
-                closeButton.value.style.transition = 'opacity 300ms ease-in-out';
-                closeButton.value.style.opacity = 1;
+                closeButton.value.classList.remove('disable-close-button');
 
                 if (hideButtonTimer.value) {
                     clearTimeout(hideButtonTimer.value);
@@ -60,7 +58,8 @@ export default {
 
         const hideCloseButton = () => {
             if (closeButton.value) {
-                closeButton.value.style.opacity = 0;
+                closeButton.value.classList.add('disable-close-button');
+
             }
         };
 
@@ -107,15 +106,19 @@ export default {
     height: 18px;
     color: #7F7F92;
     font-size: 1rem;
-    opacity: 0;
+    opacity: 1;
     font-weight: bold;
     transition: opacity 300ms ease-in-out;
 }
 
 #close-button:hover {
     color: #d4d0e0;
-    cursor: pointer !important;
+    cursor: pointer;
     opacity: 1;
+}
+
+.disable-close-button {
+    opacity: 0 !important;
 }
 
 </style>
