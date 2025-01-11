@@ -4,7 +4,7 @@
 -->
 
 <template>
-    <div id="title-bar" data-tauri-drag-region @mousedown="startDragging"></div>
+    <div id="title-bar" @mousedown="startDragging" @mouseleave="stopDragging"></div>
     <div ref="closeButton" id="close-button" :class="'disable-close-button'" @mousemove="keepButtonVisible" @mouseleave="enableCloseButton" @click="closeWindow">&#10005;</div>
 </template>
 
@@ -28,7 +28,13 @@ export default {
         };
 
         const startDragging = () => {
+            window.removeEventListener('blur', closeWindow);
             appWindow.startDragging();
+        };
+
+        const stopDragging = () => {
+            window.removeEventListener('blur', closeWindow);
+            window.addEventListener('blur', closeWindow);
         };
 
         const enableCloseButton = () => {
@@ -65,10 +71,12 @@ export default {
         onBeforeUnmount(() => {
             document.removeEventListener('mousemove', enableCloseButton);
             document.removeEventListener('mouseout', hideCloseButton);
+            window.removeEventListener('blur', closeWindow);
         });
 
         document.addEventListener('mousemove', enableCloseButton);
         document.addEventListener('mouseout', hideCloseButton);
+        window.addEventListener('blur', closeWindow);
 
         return {
             closeWindow,
@@ -77,6 +85,7 @@ export default {
             showCloseButton,
             hideCloseButton,
             startDragging,
+            stopDragging,
             closeButton
         };
     }
