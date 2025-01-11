@@ -10,7 +10,7 @@
 
 <script>
 
-import { onBeforeUnmount, ref, watch } from 'vue';
+import { onBeforeUnmount, ref } from 'vue';
 import { getCurrentWindow  } from "@tauri-apps/api/window";
 
 export default {
@@ -59,17 +59,16 @@ export default {
         const hideCloseButton = () => {
             if (closeButton.value) {
                 closeButton.value.classList.add('disable-close-button');
-
             }
         };
 
         onBeforeUnmount(() => {
             document.removeEventListener('mousemove', enableCloseButton);
-            document.removeEventListener('mouseleave', hideCloseButton);
+            document.removeEventListener('mouseout', hideCloseButton);
         });
 
         document.addEventListener('mousemove', enableCloseButton);
-        document.addEventListener('mouseleave', hideCloseButton);
+        document.addEventListener('mouseout', hideCloseButton);
 
         return {
             closeWindow,
