@@ -149,7 +149,7 @@ fn sid_device_loop(receiver: Receiver<(SettingsCommand, Option<i32>)>, settings:
 
         let allow_external_connections = settings.lock().get_config().lock().allow_external_connections;
 
-        let server_result = sid_device_server.start(allow_external_connections, receiver.clone(), device_state.device_ready.clone(), device_state.quit.clone());
+        let server_result = sid_device_server.start(allow_external_connections, receiver.clone(), device_state.clone());
 
         if let Err(server_result) = server_result {
             println!("ERROR: {server_result}\r");
@@ -353,6 +353,9 @@ fn create_system_tray(app: &AppHandle<Wry>, settings: &Arc<Mutex<Settings>>) {
                 // refresh state CheckMenuItem for "Launch at startup"
                 let launch_at_start = settings.lock().get_config().lock().launch_at_start_enabled;
                 launch_at_startup_menu_item.set_checked(launch_at_start).unwrap();
+
+                let device_state = tray.app_handle().state::<DeviceState>();
+                tray.set_tooltip(Some(format!("SID Device\nClients connected: {}", device_state.connection_count.load(Ordering::SeqCst)))).unwrap();
 
                 if let TrayIconEvent::DoubleClick { button: MouseButton::Left, .. } = event {
                     let app = tray.app_handle();

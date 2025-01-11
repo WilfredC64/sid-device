@@ -2,11 +2,12 @@
 // Licensed under the GNU GPL v3 license. See the LICENSE file for the terms and conditions.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 
 use parking_lot::Mutex;
 
 pub struct DeviceState {
+    pub connection_count: Arc<AtomicI32>,
     pub device_ready: Arc<AtomicBool>,
     pub restart: Arc<AtomicBool>,
     pub quit: Arc<AtomicBool>,
@@ -18,6 +19,7 @@ pub struct DeviceState {
 impl DeviceState {
     pub fn new() -> DeviceState {
         DeviceState {
+            connection_count: Arc::new(AtomicI32::new(0)),
             device_ready: Arc::new(AtomicBool::new(false)),
             restart: Arc::new(AtomicBool::new(true)),
             quit: Arc::new(AtomicBool::new(false)),
@@ -47,6 +49,7 @@ impl DeviceState {
 
     pub fn clone(&self) -> DeviceState {
         DeviceState {
+            connection_count: self.connection_count.clone(),
             device_ready: self.device_ready.clone(),
             restart: self.restart.clone(),
             quit: self.quit.clone(),

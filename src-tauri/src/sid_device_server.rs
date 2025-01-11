@@ -6,7 +6,7 @@ mod player;
 use std::io::{self, ErrorKind, Read, Write};
 use std::net::{TcpListener, TcpStream, Shutdown};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::{thread, time::Duration};
 
 use async_broadcast::Receiver;
@@ -14,6 +14,7 @@ use parking_lot::Mutex;
 
 use player::Player;
 use crate::{Config, SettingsCommand};
+use crate::device_state::DeviceState;
 
 const LOCAL_HOST: &str = "127.0.0.1";
 const ALLOW_ALL_HOST: &str = "0.0.0.0";
@@ -102,16 +103,13 @@ impl Command {
 }
 
 pub struct SidDeviceServer {
-    config: Arc<Mutex<Config>>,
-    connection_count: Arc<AtomicI32>
+    config: Arc<Mutex<Config>>
 }
 
 impl SidDeviceServer {
     pub fn new(config: Arc<Mutex<Config>>) -> SidDeviceServer {
-        let connection_count = Arc::new(AtomicI32::new(0));
         SidDeviceServer {
-            config,
-            connection_count
+            config
         }
     }
 
@@ -119,8 +117,11 @@ impl SidDeviceServer {
             &mut self,
             allow_external_connections: bool,
             receiver: Receiver<(SettingsCommand, Option<i32>)>,
-            device_ready: Arc<AtomicBool>,
-            quit: Arc<AtomicBool>) -> Result<(), String> {
+            device_state: DeviceState) -> Result<(), String> {
+        let device_ready = device_state.device_ready;
+        let quit = device_state.quit;
+        let connection_count = device_state.connection_count;
+
         let host = if allow_external_connections {
             ALLOW_ALL_HOST
         } else {
@@ -152,7 +153,7 @@ impl SidDeviceServer {
 
                     let local_quit = quit.clone();
                     let receiver_clone: Receiver<(SettingsCommand, Option<i32>)> = receiver.clone();
-                    let local_connection_count = self.connection_count.clone();
+                    let local_connection_count = connection_count.clone();
                     let config = self.config.clone();
 
                     let _ = thread::spawn(move || {
@@ -178,7 +179,7 @@ impl SidDeviceServer {
         }
 
         // wait for connections to close
-        while self.connection_count.load(Ordering::SeqCst) > 0 {
+        while connection_count.load(Ordering::SeqCst) > 0 {
             thread::sleep(Duration::from_millis(10));
         }
         Ok(())
