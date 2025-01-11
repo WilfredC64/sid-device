@@ -19,13 +19,19 @@ fn main() -> miette::Result<()> {
     }
 
     let path = std::path::PathBuf::from("src");
-    autocxx_build::Builder::new("src/lib.rs", [&path]).build()?
+    let mut builder = autocxx_build::Builder::new("src/lib.rs", [&path]).build()?;
+
+    let build = builder
         .define("VERSION", Some("\"1.0\""))
-        .define("NEW_8580_FILTER", Some(if USE_NEW_FILTER {"1"} else {"0"}))
+        .define("NEW_8580_FILTER", Some(if USE_NEW_FILTER { "1" } else { "0" }))
         .files(src)
         .flag_if_supported("-Wno-psabi")
-        .warnings(false)
-        .compile("resid");
+        .warnings(false);
+
+    #[cfg(target_os = "macos")]
+    build.flag_if_supported("-std=c++14");
+
+    build.compile("resid");
 
     println!("cargo:rerun-if-changed=src/lib.rs");
     println!("cargo:rerun-if-changed=src/resid10/");
