@@ -28,13 +28,13 @@ rand = "0.8.5"
 resid-sys = { path = "resid-sys", version = "=1.0.0" }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-tauri = { version = "2.2.1", features = [ "tray-icon"] }
+tauri = { version = "2.2.2", features = [ "tray-icon"] }
 tauri-plugin-dialog = "2.2.0"
 thread-priority = "1.2.0"
 typed-builder = "0.20.0"
 
 [target."cfg(not(any(target_os = \"android\", target_os = \"ios\")))".dependencies]
-tauri-plugin-single-instance = "2.2.0"
+tauri-plugin-single-instance = "2.2.1"
 tauri-plugin-autostart = "2.2.0"
 
 [features]
