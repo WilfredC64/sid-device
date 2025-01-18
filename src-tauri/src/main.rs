@@ -244,7 +244,6 @@ fn exit_sid_device(app_handle: &AppHandle) {
 fn hide_window(app_handle: &AppHandle<Wry>, label_window: &str) {
     let window = app_handle.get_webview_window(label_window).unwrap();
     window.hide().unwrap();
-    window.emit("hide", None::<String>).unwrap();
 }
 
 fn create_dialogs(app: &mut App<Wry>) -> Result<(), Box<dyn std::error::Error>> {
@@ -381,8 +380,6 @@ fn show_about_window(app: &AppHandle<Wry>, title: &str) {
     let popup_window = app.get_webview_window(title);
 
     if let Some(popup_window) = popup_window {
-        popup_window.emit_to(title, "show", None::<String>).unwrap();
-
         show_window(&popup_window, "SID Device - About");
     }
 }
@@ -391,8 +388,6 @@ fn show_settings_window(app: &AppHandle<Wry>, title: &str, config: &Config) {
     let popup_window = app.get_webview_window(title);
 
     if let Some(popup_window) = popup_window {
-        popup_window.emit_to(title, "show", None::<String>).unwrap();
-
         show_window(&popup_window, "SID Device - Settings");
 
         popup_window
