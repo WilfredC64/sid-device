@@ -4,7 +4,7 @@
 -->
 
 <template>
-    <div id="about" ref="about">
+    <div id="about">
         <TitleBar />
         <div id="content">
             <img alt="Sid-Device logo" class="logo" draggable="false" ondragstart="return false;" src="../assets/sid_device_256x256.png">
@@ -30,35 +30,10 @@
 
 <script>
 
-import { listen } from '@tauri-apps/api/event';
-import { ref } from 'vue';
 import TitleBar from './TitleBar.vue';
 
 export default {
     name: 'AboutDialog',
-    setup() {
-        const about = ref();
-
-        const activateListeners = async () => {
-            await listen('show', async () => {
-                if (about.value) {
-                    about.value.style.display = 'block';
-                }
-            });
-
-            await listen('hide', async () => {
-                if (about.value) {
-                    about.value.style.display = 'none';
-                }
-            });
-        }
-
-        activateListeners();
-
-        return {
-            about
-        }
-    },
     components: {
         TitleBar
     }
@@ -75,7 +50,6 @@ export default {
     background-size: 100% 500px;
     background-position: bottom center;
     background-attachment: fixed;
-    display: none;
 
     text-align: center;
     overflow-y: auto;
