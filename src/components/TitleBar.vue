@@ -68,15 +68,51 @@ export default {
             }
         };
 
+        const handleSpecialKeys = (event) => {
+            if (event.key === 'Escape') {
+                if (document.activeElement === document.body) {
+                    event.preventDefault();
+                    appWindow.close();
+                } else {
+                    document.body.setAttribute('tabindex', '-1');
+                    document.body.focus();
+                }
+                return;
+            }
+
+            if (event.key === 'Tab') {
+                const focusableElements = document.querySelectorAll('[tabindex]:not([tabindex="-1"])');
+                if (focusableElements.length === 0) {
+                    event.preventDefault();
+                    return;
+                }
+
+                const firstElement = focusableElements[0];
+                const lastElement = focusableElements[focusableElements.length - 1];
+                const isShiftPressed = event.shiftKey;
+                const activeElement = document.activeElement;
+
+                if (activeElement === lastElement && !isShiftPressed) {
+                    event.preventDefault();
+                    firstElement.focus();
+                } else if ((activeElement === firstElement || activeElement === document.body) && isShiftPressed) {
+                    event.preventDefault();
+                    lastElement.focus();
+                }
+            }
+        };
+
         onBeforeUnmount(() => {
             document.removeEventListener('mousemove', enableCloseButton);
             document.removeEventListener('mouseout', hideCloseButton);
             window.removeEventListener('blur', closeWindow);
+            window.removeEventListener('keydown', handleSpecialKeys);
         });
 
         document.addEventListener('mousemove', enableCloseButton);
         document.addEventListener('mouseout', hideCloseButton);
         window.addEventListener('blur', closeWindow);
+        window.addEventListener('keydown', handleSpecialKeys);
 
         return {
             closeWindow,
@@ -86,6 +122,7 @@ export default {
             hideCloseButton,
             startDragging,
             stopDragging,
+            handleSpecialKeys,
             closeButton
         };
     }
