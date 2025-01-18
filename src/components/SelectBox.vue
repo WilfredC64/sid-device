@@ -100,6 +100,7 @@ export default {
         const closeOptions = (event) => {
             if (optionsExpanded.value) {
                 optionsExpanded.value = false;
+                selectBox.value.focus();
 
                 if (event?.relatedTarget?.className === 'select-box') {
                     nextOnclickIgnored.value = true;
@@ -162,9 +163,12 @@ export default {
                 }
                 case 'Escape':
                 case 'Enter': {
-                    optionsExpanded.value = false;
-                    selectBox.value.focus();
-                    event.preventDefault();
+                    if (optionsExpanded.value) {
+                        optionsExpanded.value = false;
+                        selectBox.value.focus();
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
                     break;
                 }
                 case 'Space': {
