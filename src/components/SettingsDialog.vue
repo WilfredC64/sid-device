@@ -4,7 +4,7 @@
 -->
 
 <template>
-    <div id="settings" ref="settings">
+    <div id="settings">
         <TitleBar />
         <div class="properties">
             <p>
@@ -57,7 +57,12 @@
                             </check-box>
                         </p>
                     </div>
-                    <div class="settings-button" tabindex="0" @keyup="handleKeyUpResetDefault" @click="resetToDefault">Reset to default</div>
+                    <div class="settings-button"
+                         tabindex="0"
+                         @keyup="handleKeyUpResetDefault"
+                         @click="resetToDefault">
+                        Reset to default
+                    </div>
                 </div>
             </div>
         </div>
@@ -80,7 +85,6 @@ export default {
     setup() {
         const deviceList = ref([]);
         const config = ref({});
-        const settings = ref(null);
 
         let deviceReady = false;
 
@@ -99,18 +103,6 @@ export default {
                     await emit('retry');
                 } else {
                     await emit('exit');
-                }
-            });
-
-            await listen('show', async () => {
-                if (settings.value) {
-                    settings.value.style.display = 'block';
-                }
-            });
-
-            await listen('hide', async () => {
-                if (settings.value) {
-                    settings.value.style.display = 'none';
                 }
             });
         }
@@ -202,7 +194,6 @@ export default {
         return {
             config,
             deviceList,
-            settings,
             allowExternalIp,
             changeAudioDevice,
             enableDigiBoost,
