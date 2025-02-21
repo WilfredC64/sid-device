@@ -546,11 +546,11 @@ fn generate_sample(audio_output_stream: &mut Arc<AtomicRingBuffer<i16>>, sid_wri
 
     let mut audio_buffer = [0i16; SAMPLE_BUFFER_SIZE * 2];    // for left and right channel
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let mut prev_dithering = 0;
     let mut generate_next_dithering_value = || -> i32 {
         let tmp_value = prev_dithering;
-        prev_dithering = rng.gen::<i32>() & 1;
+        prev_dithering = rng.random::<i32>() & 1;
         prev_dithering - tmp_value
     };
 
