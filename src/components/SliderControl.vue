@@ -61,8 +61,8 @@ export default {
     emits: ["change"],
     setup(props, ctx) {
         let movingIndicator = false;
-        let maxValue = ref(props.maxValue).value;
-        let minValue = ref(props.minValue).value;
+        const maxValue = ref(props.maxValue).value;
+        const minValue = ref(props.minValue).value;
 
         const indicator = ref(null);
         const indicatorWrapper = ref(null);
@@ -285,7 +285,7 @@ export default {
                 }
                 case 'ArrowUp':
                 case 'ArrowLeft': {
-                    let value = getSelectedValue() - 1;
+                    const value = getSelectedValue() - 1;
 
                     if (value >= Number(minValue)) {
                         setValueIndicatorPercentage((value - Number(minValue)) / (Number(maxValue) - Number(minValue)));
@@ -297,7 +297,7 @@ export default {
                 }
                 case 'ArrowDown':
                 case 'ArrowRight': {
-                    let value = getSelectedValue() + 1;
+                    const value = getSelectedValue() + 1;
 
                     if (value <= Number(maxValue)) {
                         setValueIndicatorPercentage((value - Number(minValue)) / (Number(maxValue) - Number(minValue)));
@@ -309,7 +309,7 @@ export default {
                 }
 
                 case 'PageUp': {
-                    let value = getSelectedValue() - 10;
+                    const value = getSelectedValue() - 10;
 
                     if (value >= Number(minValue)) {
                         setValueIndicatorPercentage((value - Number(minValue)) / (Number(maxValue) - Number(minValue)));
@@ -320,7 +320,7 @@ export default {
                     break;
                 }
                 case 'PageDown': {
-                    let value = getSelectedValue() + 10;
+                    const value = getSelectedValue() + 10;
 
                     if (value <= Number(maxValue)) {
                         setValueIndicatorPercentage((value - Number(minValue)) / (Number(maxValue) - Number(minValue)));

@@ -42,8 +42,8 @@ export default {
     },
     emits: ["change"],
     setup(props, ctx) {
-        let optionsExpanded = ref(false);
-        let nextOnclickIgnored = ref(false);
+        const optionsExpanded = ref(false);
+        const nextOnclickIgnored = ref(false);
         const optionElements = ref(null);
         const selectBox = ref(null);
 
