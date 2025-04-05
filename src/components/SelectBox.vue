@@ -114,7 +114,9 @@ export default {
 
         const selectOption = (event, index) => {
             closeOptions();
-            ctx.emit('change', index);
+            if (props.selectedIndex !== index) {
+                ctx.emit('change', index);
+            }
         }
 
         const getPageUpStep = () => {
