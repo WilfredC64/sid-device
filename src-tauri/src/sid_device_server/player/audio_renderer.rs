@@ -527,7 +527,7 @@ fn configure_sids(sids: &mut Vec<Sid>, config: &mut Config) {
 }
 
 fn try_generate_sample(audio_output_stream: &mut Arc<AtomicRingBuffer<i16>>, sid_write_queue: &mut Arc<AtomicRingBuffer<SidWrite>>, sids: &mut Vec<Sid>, cycles_in_buffer: &Arc<AtomicU32>, config: &mut Config) {
-    if sid_write_queue.len() > 0 && audio_output_stream.len() < AUDIO_STREAM_LIMIT {
+    if !sid_write_queue.is_empty() && audio_output_stream.len() < AUDIO_STREAM_LIMIT {
         generate_sample(audio_output_stream, sid_write_queue, sids, cycles_in_buffer, config);
     }
 }
@@ -609,7 +609,7 @@ fn generate_sample(audio_output_stream: &mut Arc<AtomicRingBuffer<i16>>, sid_wri
                 }
 
                 let sid_num = min(sid_write.reg >> 5, (config.sid_count - 1) as u8);
-                sids[sid_num as usize].write((sid_write.reg & 0x1f) as u32,  (sid_write.data) as u32);
+                sids[sid_num as usize].write((sid_write.reg & 0x1f) as u32, (sid_write.data) as u32);
             }
         } else {
             break;
