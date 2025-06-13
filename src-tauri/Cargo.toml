@@ -18,23 +18,23 @@ anyhow = "1.0.98"
 app_dirs2 = "2.5.5"
 async-broadcast = "0.7.2"
 atomicring = "1.2.9"
-cpal = "0.15.3"
+cpal = "0.16.0"
 crossbeam-channel = "0.5.15"
 futures-lite = "2.6.0"
 hostname = "0.4.1"
-os_info = "3.10.0"
-parking_lot = "0.12.3"
+os_info = "3.12.0"
+parking_lot = "0.12.4"
 rand = "0.9.1"
 resid-sys = { path = "resid-sys", version = "=1.0.0" }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "2.5.1", features = [ "tray-icon"] }
-tauri-plugin-dialog = "2.2.1"
-thread-priority = "1.2.0"
+tauri-plugin-dialog = "2.2.2"
+thread-priority = "2.0.0"
 typed-builder = "0.21.0"
 
 [target."cfg(not(any(target_os = \"android\", target_os = \"ios\")))".dependencies]
-tauri-plugin-single-instance = "2.2.3"
+tauri-plugin-single-instance = "2.2.4"
 tauri-plugin-autostart = "2.3.0"
 
 [features]
