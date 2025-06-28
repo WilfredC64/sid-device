@@ -7,11 +7,11 @@ authors = ["Wilfred Bos"]
 license = "GPL-3.0-or-later"
 repository = "https://github.com/WilfredC64/sid-device.git"
 default-run = "sid-device"
-edition = "2021"
-rust-version = "1.80"
+edition = "2024"
+rust-version = "1.85"
 
 [build-dependencies]
-tauri-build = { version = "2.2.0", features = [] }
+tauri-build = { version = "2.3.0", features = [] }
 
 [dependencies]
 anyhow = "1.0.98"
@@ -28,14 +28,14 @@ rand = "0.9.1"
 resid-sys = { path = "resid-sys", version = "=1.0.0" }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-tauri = { version = "2.5.1", features = [ "tray-icon"] }
-tauri-plugin-dialog = "2.2.2"
-thread-priority = "2.0.0"
+tauri = { version = "2.6.2", features = [ "tray-icon"] }
+tauri-plugin-dialog = "2.3.0"
+thread-priority = "2.1.0"
 typed-builder = "0.21.0"
 
 [target."cfg(not(any(target_os = \"android\", target_os = \"ios\")))".dependencies]
-tauri-plugin-single-instance = "2.2.4"
-tauri-plugin-autostart = "2.3.0"
+tauri-plugin-single-instance = "2.3.0"
+tauri-plugin-autostart = "2.5.0"
 
 [features]
 # by default Tauri runs in production mode
