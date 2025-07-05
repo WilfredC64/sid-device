@@ -195,7 +195,7 @@ impl SidDeviceServerThread {
         let config = config.lock();
         let device_numer = config.audio_device_number;
 
-        let mut player = Player::new(device_numer);
+        let player = Player::new(device_numer);
         player.enable_digiboost(config.digiboost_enabled);
         player.set_filter_bias_6581(config.filter_bias_6581);
 

@@ -58,11 +58,11 @@ impl Player {
         }
     }
 
-    pub fn has_error(&mut self) -> bool {
+    pub fn has_error(&self) -> bool {
         AUDIO_ERROR.load(Ordering::SeqCst)
     }
 
-    pub fn has_max_data_in_buffer(&mut self) -> bool {
+    pub fn has_max_data_in_buffer(&self) -> bool {
         let cycles = self.cycles_in_buffer.load(Ordering::SeqCst);
         let enough_data = self.queue.len() > SID_WRITES_BUFFER_SIZE / 2 || cycles > MAX_CYCLES_IN_BUFFER;
         if enough_data {
@@ -71,11 +71,11 @@ impl Player {
         enough_data
     }
 
-    pub fn has_min_data_in_buffer(&mut self) -> bool {
+    pub fn has_min_data_in_buffer(&self) -> bool {
         self.cycles_in_buffer.load(Ordering::SeqCst) > MIN_CYCLES_TO_DRAIN_QUEUE || self.queue.len() > MIN_WRITES_TO_DRAIN_QUEUE
     }
 
-    pub fn start_draining(&mut self) {
+    pub fn start_draining(&self) {
         self.queue_started.store(true, Ordering::SeqCst);
     }
 
@@ -99,11 +99,11 @@ impl Player {
         self.aborted.store(true, Ordering::SeqCst);
     }
 
-    pub fn reset(&mut self) {
+    pub fn reset(&self) {
         let _ = self.player_cmd_sender.send((PlayerCommand::Reset, None));
     }
 
-    pub fn enable_digiboost(&mut self, enabled: bool) {
+    pub fn enable_digiboost(&self, enabled: bool) {
         let command = if enabled {
             PlayerCommand::EnableDigiboost
         } else {
@@ -112,15 +112,15 @@ impl Player {
         let _ = self.player_cmd_sender.send((command, None));
     }
 
-    pub fn set_filter_bias_6581(&mut self, filter_bias: Option<i32>) {
+    pub fn set_filter_bias_6581(&self, filter_bias: Option<i32>) {
         let _ = self.player_cmd_sender.send((PlayerCommand::SetFilterBias6581, filter_bias));
     }
 
-    pub fn set_model(&mut self, model: i32) {
+    pub fn set_model(&self, model: i32) {
         let _ = self.player_cmd_sender.send((PlayerCommand::SetModel, Some(model)));
     }
 
-    pub fn set_clock(&mut self, clock: i32) {
+    pub fn set_clock(&self, clock: i32) {
         let _ = self.player_cmd_sender.send((PlayerCommand::SetClock, Some(clock)));
     }
 
@@ -131,11 +131,11 @@ impl Player {
         let _ = self.player_cmd_sender.send((PlayerCommand::SetSidCount, Some(count)));
     }
 
-    pub fn set_position(&mut self, position: i32) {
+    pub fn set_position(&self, position: i32) {
         let _ = self.player_cmd_sender.send((PlayerCommand::SetPosition, Some(position)));
     }
 
-    pub fn set_sampling_method(&mut self, sampling_method: i32) {
+    pub fn set_sampling_method(&self, sampling_method: i32) {
         let _ = self.player_cmd_sender.send((PlayerCommand::SetSamplingMethod, Some(sampling_method)));
     }
 
@@ -144,7 +144,7 @@ impl Player {
         self.audio_device.set_audio_device(audio_device_number);
     }
 
-    fn clear_queue(&mut self) {
+    fn clear_queue(&self) {
         self.cycles_in_buffer.store(0, Ordering::SeqCst);
         self.queue.clear();
         self.queue_started.store(false, Ordering::SeqCst);
