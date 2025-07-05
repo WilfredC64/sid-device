@@ -19,6 +19,9 @@ use thread_priority::{set_current_thread_priority, ThreadPriority};
 
 pub static AUDIO_ERROR: AtomicBool = AtomicBool::new(false);
 
+const VOICE_MASK_DEFAULT: u32 = 0x07;
+const VOICE_MASK_DIGIBOOST: u32 = 0x0f;
+
 const AUDIO_BUFFER_SIZE: usize = 65_536;
 const SAMPLE_BUFFER_SIZE: usize = 8_192;
 
@@ -189,13 +192,13 @@ impl AudioRenderer {
 
         self.start_audio_thread(audio_device_number, !restart);
 
-        let mut config = self.config.clone();
+        let config = self.config.clone();
 
-        let mut sound_buffer_clone = self.sound_buffer.clone();
+        let sound_buffer_clone = self.sound_buffer.clone();
         let should_stop_audio_generator_clone = self.should_stop_audio_generator.clone();
         let should_pause_clone = self.should_pause.clone();
         let aborted = self.aborted.clone();
-        let mut queue = self.queue.clone();
+        let queue = self.queue.clone();
         let cycles_in_buffer = self.cycles_in_buffer.clone();
 
         let in_cmd_receiver = self.in_cmd_receiver.clone();
@@ -213,11 +216,11 @@ impl AudioRenderer {
 
         self.emulation_thread = Some(thread::spawn(move || {
             Self::sid_emulation_thread(
-                &mut queue,
+                &queue,
                 &in_cmd_receiver,
                 &out_sid_read_sender,
-                &mut config,
-                &mut sound_buffer_clone,
+                &config,
+                &sound_buffer_clone,
                 device_state
             )
         }));
@@ -291,11 +294,11 @@ impl AudioRenderer {
     }
 
     fn sid_emulation_thread(
-        queue: &mut Arc<AtomicRingBuffer<SidWrite>>,
+        queue: &Arc<AtomicRingBuffer<SidWrite>>,
         in_cmd_receiver_clone: &Receiver<(PlayerCommand, Option<i32>)>,
         out_sid_read_sender: &Sender<u8>,
-        config: &mut Arc<Mutex<Config>>,
-        sound_buffer: &mut Arc<AtomicRingBuffer<i16>>,
+        config: &Arc<Mutex<Config>>,
+        sound_buffer: &Arc<AtomicRingBuffer<i16>>,
         device_state: DeviceState
     ) {
         let _ = set_current_thread_priority(ThreadPriority::Max);
@@ -355,7 +358,7 @@ impl AudioRenderer {
     }
 
     #[inline]
-    fn has_enough_data(sound_buffer: &mut Arc<AtomicRingBuffer<i16>>, device_state: &DeviceState) -> bool {
+    fn has_enough_data(sound_buffer: &Arc<AtomicRingBuffer<i16>>, device_state: &DeviceState) -> bool {
         device_state.cycles_in_buffer.load(Ordering::SeqCst) > CYCLES_IN_BUFFER_THRESHOLD && sound_buffer.len() > SOUND_BUFFER_SIZE_THRESHOLD
     }
 
@@ -447,7 +450,7 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
 
                 for (i, sid) in sids.iter_mut().enumerate() {
                     if config.chip_model[i] == chip_model::MOS8580 {
-                        sid.set_voice_mask(0x0f_u32);
+                        sid.set_voice_mask(VOICE_MASK_DIGIBOOST);
                         sid.input(i16::MIN);
                     }
                 }
@@ -457,7 +460,7 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
 
                 for (i, sid) in sids.iter_mut().enumerate() {
                     if config.chip_model[i] == chip_model::MOS8580 {
-                        sid.set_voice_mask(0x07_u32);
+                        sid.set_voice_mask(VOICE_MASK_DEFAULT);
                         sid.input(0);
                     }
                 }
@@ -526,13 +529,13 @@ fn configure_sids(sids: &mut Vec<Sid>, config: &mut Config) {
     config.config_changed = false;
 }
 
-fn try_generate_sample(audio_output_stream: &mut Arc<AtomicRingBuffer<i16>>, sid_write_queue: &mut Arc<AtomicRingBuffer<SidWrite>>, sids: &mut Vec<Sid>, cycles_in_buffer: &Arc<AtomicU32>, config: &mut Config) {
+fn try_generate_sample(audio_output_stream: &Arc<AtomicRingBuffer<i16>>, sid_write_queue: &Arc<AtomicRingBuffer<SidWrite>>, sids: &mut Vec<Sid>, cycles_in_buffer: &Arc<AtomicU32>, config: &mut Config) {
     if !sid_write_queue.is_empty() && audio_output_stream.len() < AUDIO_STREAM_LIMIT {
         generate_sample(audio_output_stream, sid_write_queue, sids, cycles_in_buffer, config);
     }
 }
 
-fn generate_sample(audio_output_stream: &mut Arc<AtomicRingBuffer<i16>>, sid_write_queue: &mut Arc<AtomicRingBuffer<SidWrite>>, sids: &mut Vec<Sid>, cycles_in_buffer: &Arc<AtomicU32>, config: &mut Config) {
+fn generate_sample(audio_output_stream: &Arc<AtomicRingBuffer<i16>>, sid_write_queue: &Arc<AtomicRingBuffer<SidWrite>>, sids: &mut Vec<Sid>, cycles_in_buffer: &Arc<AtomicU32>, config: &mut Config) {
     if audio_output_stream.len() > AUDIO_STREAM_MAX_LIMIT {
         return;
     }
