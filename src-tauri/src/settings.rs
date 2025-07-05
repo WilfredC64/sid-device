@@ -69,7 +69,7 @@ impl Settings {
         }
     }
 
-    pub fn save_config(&mut self) {
+    pub fn save_config(&self) {
         *self.last_save.lock() = Instant::now();
 
         let can_save = self.save_in_progress.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst);
@@ -96,7 +96,7 @@ impl Settings {
         }
     }
 
-    pub fn get_config(&mut self) -> Arc<Mutex<Config>> {
+    pub fn get_config(&self) -> Arc<Mutex<Config>> {
         self.config.clone()
     }
 
@@ -106,7 +106,7 @@ impl Settings {
         self.save_config();
     }
 
-    pub fn set_launch_at_start(&mut self, enabled: bool) {
+    pub fn set_launch_at_start(&self, enabled: bool) {
         let mut config = self.config.lock();
         config.launch_at_start_enabled = enabled;
     }
