@@ -122,10 +122,14 @@ export default {
 
         const refreshDeviceList = () => {
             invoke('get_devices_cmd').then((response) => {
-                deviceList.value = [
-                    'Default Sound Driver: ' + response.devices[response.default_device],
-                    ...response.devices
-                ];
+                if (response.devices.length === 0) {
+                    deviceList.value = ['No audio device found'];
+                } else {
+                    deviceList.value = [
+                        'Default Sound Driver: ' + response.devices[response.default_device],
+                        ...response.devices
+                    ];
+                }
 
                 if (config.value.audio_device_number == null || config.value.audio_device_number >= deviceList.value.length) {
                     config.value.audio_device_number = 0;
