@@ -53,7 +53,7 @@ impl DeviceState {
             device_ready: self.device_ready.clone(),
             restart: self.restart.clone(),
             quit: self.quit.clone(),
-            stopped: self.quit.clone(),
+            stopped: self.stopped.clone(),
             error: self.error.clone(),
             error_msg: self.error_msg.clone()
         }
