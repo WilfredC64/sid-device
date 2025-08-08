@@ -20,7 +20,7 @@ async-broadcast = "0.7.2"
 atomicring = "1.2.9"
 cpal = "0.16.0"
 crossbeam-channel = "0.5.15"
-futures-lite = "2.6.0"
+futures-lite = "2.6.1"
 hostname = "0.4.1"
 os_info = "3.12.0"
 parking_lot = "0.12.4"
@@ -29,7 +29,7 @@ resid-sys = { path = "resid-sys", version = "=1.0.0" }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 tauri = { version = "2.7.0", features = [ "tray-icon"] }
-tauri-plugin-dialog = "2.3.1"
+tauri-plugin-dialog = "2.3.2"
 thread-priority = "2.1.0"
 typed-builder = "0.21.0"
 
