@@ -585,16 +585,15 @@ fn generate_sample(audio_output_stream: &Arc<AtomicRingBuffer<i16>>, sid_write_q
                     }
 
                     if config.sid_count == 1 {
-                        for i in 0..total_sample_length {
-                            let sample = sample_buffers[0][i] as i32;
-                            store_audio(&mut audio_buffer, i, sample, sample);
+                        for (i, &sample_buffer) in sample_buffers[0].iter().take(total_sample_length).enumerate() {
+                            store_audio(&mut audio_buffer, i, sample_buffer as i32, sample_buffer as i32);
                         }
                     } else {
                         for i in 0..total_sample_length {
                             let mut left = 0;
                             let mut right = 0;
 
-                            for (j, sid_sample_buffer) in sample_buffers.iter().enumerate().take(config.sid_count as usize) {
+                            for (j, sid_sample_buffer) in sample_buffers.iter().take(config.sid_count as usize).enumerate() {
                                 let panning_left = config.position_left[j];
                                 let panning_right = config.position_right[j];
                                 left += sid_sample_buffer[i] as i32 * panning_left / 100;
@@ -631,7 +630,7 @@ fn generate_sample(audio_output_stream: &Arc<AtomicRingBuffer<i16>>, sid_write_q
 
 #[inline]
 fn add_dithering_and_limit_output(sample: i32, dithering: i32) -> i16 {
-    (sample + dithering).clamp(i16::MIN as i32, i16::MAX as i32) as i16
+    sample.saturating_add(dithering).clamp(i16::MIN as i32, i16::MAX as i32) as i16
 }
 
 fn run<T>(device: &Device, config: &StreamConfig, sound_buffer: Arc<AtomicRingBuffer<i16>>, should_stop: Arc<AtomicBool>, should_pause: Arc<AtomicBool>) -> Result<(), anyhow::Error>
