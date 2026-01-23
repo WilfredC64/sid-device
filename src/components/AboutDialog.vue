@@ -1,5 +1,5 @@
 <!--
-  Copyright (C) 2022 - 2025 Wilfred Bos
+  Copyright (C) 2022 - 2026 Wilfred Bos
   Licensed under the GNU GPL v3 license. See the LICENSE file for the terms and conditions.
 -->
 
@@ -13,10 +13,10 @@
             </div>
             <div class="credits">
                 <p>
-                    Copyright &#xa9; 2021 - 2025 by Wilfred Bos
+                    Copyright &#xa9; 2021 - 2026 by Wilfred Bos
                 </p>
                 <p>
-                    Network SID Interface &ndash; Copyright &#xa9; 2007 - 2024
+                    Network SID Interface &ndash; Copyright &#xa9; 2007 - 2025
                     <br/>
                     by Wilfred Bos, Ken H&auml;ndel and Antti S. Lankila
                 </p>

@@ -16,6 +16,7 @@ use typed_builder::TypedBuilder;
 
 use resid::{chip_model, sampling_method, Sid};
 use thread_priority::{set_current_thread_priority, ThreadPriority};
+use crate::utils::audio::get_device_display_name;
 
 pub static AUDIO_ERROR: AtomicBool = AtomicBool::new(false);
 
@@ -232,14 +233,14 @@ impl AudioRenderer {
         let sample_rate = device_config.sample_rate();
 
         let mut config = self.config.lock();
-        config.sample_rate = sample_rate.0;
+        config.sample_rate = sample_rate;
 
         let should_stop_audio_producer_clone = self.should_stop_audio_producer.clone();
         let should_pause = self.should_pause.clone();
         let sound_buffer_clone = self.sound_buffer.clone();
 
         if log_device_name && audio_device_number.is_some() {
-            println!("Using audio device: \"{}\" (sample rate: {})\r", device.name().unwrap(), sample_rate.0);
+            println!("Using audio device: \"{}\" (sample rate: {})\r", get_device_display_name(&device), sample_rate);
         }
 
         self.audio_thread = Some(thread::spawn(move || {
