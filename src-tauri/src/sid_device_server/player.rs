@@ -13,9 +13,9 @@ use crossbeam_channel::{Receiver, Sender};
 use crate::sid_device_server::player::audio_renderer::{AUDIO_ERROR, PlayerCommand, SidWrite};
 
 const SID_WRITES_BUFFER_SIZE: usize = 65_536;
-const MAX_CYCLES_IN_BUFFER: u32 = 63*312 * 50 * 3; // ~3 seconds
-const MIN_CYCLES_TO_DRAIN_QUEUE: u32 = 500_000;
-const MIN_WRITES_TO_DRAIN_QUEUE: usize = 300;
+const MAX_CYCLES_IN_BUFFER: u32 = 63*312 * 10; // ~200 milliseconds
+const MIN_CYCLES_TO_DRAIN_QUEUE: u32 = 63*312 * 5; // ~100 milliseconds
+const MIN_WRITES_TO_DRAIN_QUEUE: usize = 200;
 
 pub struct Player {
     cycles_in_buffer: Arc<AtomicU32>,
@@ -63,7 +63,7 @@ impl Player {
     }
 
     pub fn has_max_data_in_buffer(&self) -> bool {
-        let cycles = self.cycles_in_buffer.load(Ordering::SeqCst);
+        let cycles = self.cycles_in_buffer.load(Ordering::Relaxed);
         let enough_data = self.queue.len() > SID_WRITES_BUFFER_SIZE / 2 || cycles > MAX_CYCLES_IN_BUFFER;
         if enough_data {
             self.start_draining();
@@ -72,21 +72,21 @@ impl Player {
     }
 
     pub fn has_min_data_in_buffer(&self) -> bool {
-        self.cycles_in_buffer.load(Ordering::SeqCst) > MIN_CYCLES_TO_DRAIN_QUEUE || self.queue.len() > MIN_WRITES_TO_DRAIN_QUEUE
+        self.cycles_in_buffer.load(Ordering::Relaxed) > MIN_CYCLES_TO_DRAIN_QUEUE || self.queue.len() > MIN_WRITES_TO_DRAIN_QUEUE
     }
 
     pub fn start_draining(&self) {
-        self.queue_started.store(true, Ordering::SeqCst);
+        self.queue_started.store(true, Ordering::Relaxed);
     }
 
     pub fn write_to_sid(&mut self, reg: u8, data: u8, cycles: u16) {
         let sid_write = SidWrite {reg, data, cycles};
         let _ = self.queue.try_push(sid_write);
-        self.cycles_in_buffer.fetch_add(cycles as u32, Ordering::SeqCst);
+        self.cycles_in_buffer.fetch_add(cycles as u32, Ordering::Relaxed);
     }
 
     pub fn read_from_sid(&mut self, reg: u8, cycles: u16) -> u8 {
-        self.queue_started.store(true, Ordering::SeqCst);
+        self.queue_started.store(true, Ordering::Relaxed);
         self.dummy_write(reg, cycles);
 
         let _ = self.player_cmd_sender.send((PlayerCommand::Read, Some(reg as i32)));
@@ -145,9 +145,9 @@ impl Player {
     }
 
     fn clear_queue(&self) {
-        self.cycles_in_buffer.store(0, Ordering::SeqCst);
+        self.cycles_in_buffer.store(0, Ordering::Relaxed);
         self.queue.clear();
-        self.queue_started.store(false, Ordering::SeqCst);
+        self.queue_started.store(false, Ordering::Relaxed);
     }
 
     fn dummy_write(&mut self, reg: u8, cycles: u16) {
