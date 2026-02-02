@@ -8,7 +8,7 @@ pub fn get_available_audio_output_device_names() -> (Vec<String>, i32) {
     let host = cpal::default_host();
     let default_device_name = host
         .default_output_device()
-        .and_then(|d| Some(get_device_display_name(&d))).unwrap_or_default();
+        .map(|d| get_device_display_name(&d)).unwrap_or_default();
 
     let mut device_names = Vec::new();
     let mut default_index = 0_i32;
