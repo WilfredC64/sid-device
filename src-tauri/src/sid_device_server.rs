@@ -144,7 +144,7 @@ impl SidDeviceServer {
 
         println!("Listening on: {}\r", listener.local_addr().unwrap());
 
-        device_ready.store(true, Ordering::SeqCst);
+        device_ready.store(true, Ordering::Relaxed);
 
         loop {
             match listener.accept() {
@@ -157,14 +157,14 @@ impl SidDeviceServer {
                     let config = self.config.clone();
 
                     let _ = thread::spawn(move || {
-                        local_connection_count.fetch_add(1, Ordering::SeqCst);
+                        local_connection_count.fetch_add(1, Ordering::Relaxed);
                         let mut sid_device_thread = SidDeviceServerThread::new(config);
                         sid_device_thread.handle_client(stream, receiver_clone, local_quit);
-                        local_connection_count.fetch_sub(1, Ordering::SeqCst);
+                        local_connection_count.fetch_sub(1, Ordering::Relaxed);
                     });
                 }
                 Err(e) if e.kind() == ErrorKind::WouldBlock => {
-                    if quit.load(Ordering::SeqCst) {
+                    if quit.load(Ordering::Relaxed) {
                         println!("User interruption. Quitting...\r");
                         break;
                     }
@@ -179,7 +179,7 @@ impl SidDeviceServer {
         }
 
         // wait for connections to close
-        while connection_count.load(Ordering::SeqCst) > 0 {
+        while connection_count.load(Ordering::Relaxed) > 0 {
             thread::sleep(Duration::from_millis(10));
         }
         Ok(())
@@ -211,7 +211,7 @@ impl SidDeviceServerThread {
         stream.set_nonblocking(false).unwrap();
 
         loop {
-            if quit.load(Ordering::SeqCst) {
+            if quit.load(Ordering::Relaxed) {
                 stream.shutdown(Shutdown::Both).unwrap();
                 self.player.flush();
                 break;

@@ -109,14 +109,14 @@ fn main() {
         move |app_handle, e| match e {
             RunEvent::ExitRequested { api: _, .. } => {
                 let device_state = app_handle.state::<DeviceState>();
-                device_state.quit.store(true, Ordering::SeqCst);
+                device_state.quit.store(true, Ordering::Relaxed);
             }
             RunEvent::WindowEvent { label, event: WindowEvent::CloseRequested { api, .. }, .. } => {
                 let app_handle = app_handle.clone();
                 hide_window(&app_handle, &label);
 
                 let device_state = app_handle.state::<DeviceState>();
-                let quiting = device_state.quit.load(Ordering::SeqCst);
+                let quiting = device_state.quit.load(Ordering::Relaxed);
                 if !quiting {
                     api.prevent_close();
                 }
@@ -138,8 +138,8 @@ fn start_sid_device_thread(receiver: Receiver<(SettingsCommand, Option<i32>)>, s
 }
 
 fn sid_device_loop(receiver: Receiver<(SettingsCommand, Option<i32>)>, settings: &Arc<Mutex<Settings>>, device_state: DeviceState) {
-    while device_state.restart.load(Ordering::SeqCst) {
-        while device_state.error.load(Ordering::SeqCst) {
+    while device_state.restart.load(Ordering::Relaxed) {
+        while device_state.error.load(Ordering::Relaxed) {
             thread::sleep(Duration::from_millis(500));
         }
 
@@ -157,7 +157,7 @@ fn sid_device_loop(receiver: Receiver<(SettingsCommand, Option<i32>)>, settings:
         }
     }
 
-    device_state.stopped.store(true, Ordering::SeqCst);
+    device_state.stopped.store(true, Ordering::Relaxed);
 }
 
 fn start_sid_device_detect_thread(device_state: &DeviceState, settings: &Arc<Mutex<Settings>>) {
@@ -173,7 +173,7 @@ fn start_sid_device_detect_thread(device_state: &DeviceState, settings: &Arc<Mut
 
 fn sid_device_detect_loop(listener: SidDeviceListener, settings: &Arc<Mutex<Settings>>, device_state: &DeviceState) {
     loop {
-        if device_state.stopped.load(Ordering::SeqCst) {
+        if device_state.stopped.load(Ordering::Relaxed) {
             break;
         }
 
@@ -238,7 +238,7 @@ fn exit_sid_device(app_handle: &AppHandle) {
     }
 
     let device_state = app_handle.state::<DeviceState>();
-    device_state.quit.store(true, Ordering::SeqCst);
+    device_state.quit.store(true, Ordering::Relaxed);
 }
 
 fn hide_window(app_handle: &AppHandle<Wry>, label_window: &str) {
@@ -287,10 +287,10 @@ fn setup_listeners(app: &mut App<Wry>, settings: &Arc<Mutex<Settings>>) {
         move |_event| {
             let device_state = app_handle.state::<DeviceState>();
 
-            if device_state.device_ready.load(Ordering::SeqCst) {
-                device_state.device_ready.store(false, Ordering::SeqCst);
+            if device_state.device_ready.load(Ordering::Relaxed) {
+                device_state.device_ready.store(false, Ordering::Relaxed);
 
-                if device_state.error.load(Ordering::SeqCst) {
+                if device_state.error.load(Ordering::Relaxed) {
                     let msg = device_state.error_msg.lock().to_owned();
                     settings_window_clone.emit("error", Some(msg)).unwrap();
                 } else {
@@ -308,7 +308,7 @@ fn setup_listeners(app: &mut App<Wry>, settings: &Arc<Mutex<Settings>>) {
 
         move |_event| {
             let device_state = app_handle.state::<DeviceState>();
-            device_state.error.store(false, Ordering::SeqCst);
+            device_state.error.store(false, Ordering::Relaxed);
         }
     });
 
@@ -354,7 +354,7 @@ fn create_system_tray(app: &AppHandle<Wry>, settings: &Arc<Mutex<Settings>>) {
                 launch_at_startup_menu_item.set_checked(launch_at_start).unwrap();
 
                 let device_state = tray.app_handle().state::<DeviceState>();
-                tray.set_tooltip(Some(format!("SID Device\nClients connected: {}", device_state.connection_count.load(Ordering::SeqCst)))).unwrap();
+                tray.set_tooltip(Some(format!("SID Device\nClients connected: {}", device_state.connection_count.load(Ordering::Relaxed)))).unwrap();
 
                 if let TrayIconEvent::DoubleClick { button: MouseButton::Left, .. } = event {
                     let app = tray.app_handle();

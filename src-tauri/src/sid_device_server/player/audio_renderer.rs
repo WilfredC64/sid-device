@@ -315,7 +315,7 @@ impl AudioRenderer {
         loop {
             let mut config = config.lock();
 
-            if device_state.should_stop.load(Ordering::SeqCst) {
+            if device_state.should_stop.load(Ordering::Relaxed) {
                 break;
             }
             if device_state.aborted.load(Ordering::SeqCst) {
@@ -323,11 +323,11 @@ impl AudioRenderer {
                 device_state.aborted.store(false, Ordering::SeqCst);
             }
 
-            if !queue.is_empty() && device_state.queue_started.load(Ordering::SeqCst) {
+            if !queue.is_empty() && device_state.queue_started.load(Ordering::Relaxed) {
                 last_activity = Instant::now();
-                device_state.should_pause.store(false, Ordering::SeqCst);
-            } else if !device_state.should_pause.load(Ordering::SeqCst) && last_activity.elapsed().as_secs() > PAUSE_AUDIO_IDLE_TIME_IN_SEC {
-                device_state.should_pause.store(true, Ordering::SeqCst);
+                device_state.should_pause.store(false, Ordering::Relaxed);
+            } else if !device_state.should_pause.load(Ordering::Relaxed) && last_activity.elapsed().as_secs() > PAUSE_AUDIO_IDLE_TIME_IN_SEC {
+                device_state.should_pause.store(true, Ordering::Relaxed);
             }
 
             let cmd = process_player_command(in_cmd_receiver_clone, &mut config, &mut sids);
@@ -345,7 +345,7 @@ impl AudioRenderer {
                     let _ = out_sid_read_sender.send(sid_env_out);
                 }
             } else {
-                if !device_state.queue_started.load(Ordering::SeqCst) {
+                if !device_state.queue_started.load(Ordering::Relaxed) {
                     thread::sleep(Duration::from_millis(5));
                     continue;
                 }
@@ -360,7 +360,7 @@ impl AudioRenderer {
 
     #[inline]
     fn has_enough_data(sound_buffer: &Arc<AtomicRingBuffer<i16>>, device_state: &DeviceState) -> bool {
-        device_state.cycles_in_buffer.load(Ordering::SeqCst) > CYCLES_IN_BUFFER_THRESHOLD && sound_buffer.len() > SOUND_BUFFER_SIZE_THRESHOLD
+        device_state.cycles_in_buffer.load(Ordering::Relaxed) > CYCLES_IN_BUFFER_THRESHOLD && sound_buffer.len() > SOUND_BUFFER_SIZE_THRESHOLD
     }
 
     fn create_default_config(sample_rate: u32) -> Config {
@@ -612,7 +612,7 @@ fn generate_sample(audio_output_stream: &Arc<AtomicRingBuffer<i16>>, sid_write_q
                 }
 
                 let sid_num = min(sid_write.reg >> 5, (config.sid_count - 1) as u8);
-                sids[sid_num as usize].write((sid_write.reg & 0x1f) as u32, (sid_write.data) as u32);
+                sids[sid_num as usize].write((sid_write.reg & 0x1f) as u32, sid_write.data as u32);
             }
         } else {
             break;
@@ -620,11 +620,11 @@ fn generate_sample(audio_output_stream: &Arc<AtomicRingBuffer<i16>>, sid_write_q
     }
 
     if total_cycles > 0 {
-        let cycles = cycles_in_buffer.load(Ordering::SeqCst);
+        let cycles = cycles_in_buffer.load(Ordering::Relaxed);
         if cycles > total_cycles {
-            cycles_in_buffer.fetch_sub(total_cycles, Ordering::SeqCst);
+            cycles_in_buffer.fetch_sub(total_cycles, Ordering::Relaxed);
         } else {
-            cycles_in_buffer.store(0, Ordering::SeqCst);
+            cycles_in_buffer.store(0, Ordering::Relaxed);
         }
     }
 }
@@ -657,8 +657,8 @@ where
     let stream = device.build_output_stream(config, output_stream, err_fn, None)?;
     let mut is_paused = true;
 
-    while !should_stop.load(Ordering::SeqCst) {
-        let should_pause_now = should_pause.load(Ordering::SeqCst);
+    while !should_stop.load(Ordering::Relaxed) {
+        let should_pause_now = should_pause.load(Ordering::Relaxed);
         if should_pause_now != is_paused {
             if should_pause_now {
                 stream.pause()?;

@@ -99,7 +99,7 @@ pub fn enable_digiboost_cmd(digi_boost_enabled: bool, settings: State<'_, Arc<Mu
 pub fn allow_external_ip_cmd(external_ip_allowed: bool, device_state: State<'_, DeviceState>, settings: State<'_, Arc<Mutex<Settings>>>) {
     settings.lock().get_config().lock().allow_external_connections = external_ip_allowed;
 
-    device_state.device_ready.store(false, Ordering::SeqCst);
+    device_state.device_ready.store(false, Ordering::Relaxed);
     device_state.reset();
 
     settings.lock().save_config();

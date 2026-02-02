@@ -30,21 +30,21 @@ impl DeviceState {
     }
 
     pub fn init(&self) {
-        self.restart.store(false, Ordering::SeqCst);
-        self.quit.store(false, Ordering::SeqCst);
+        self.restart.store(false, Ordering::Relaxed);
+        self.quit.store(false, Ordering::Relaxed);
     }
 
     pub fn reset(&self) {
-        self.restart.store(true, Ordering::SeqCst);
-        self.quit.store(true, Ordering::SeqCst);
-        self.error.store(false, Ordering::SeqCst);
+        self.restart.store(true, Ordering::Relaxed);
+        self.quit.store(true, Ordering::Relaxed);
+        self.error.store(false, Ordering::Relaxed);
     }
 
     pub fn set_error(&self, error_msg: String) {
         *self.error_msg.lock() = error_msg;
-        self.error.store(true, Ordering::SeqCst);
-        self.restart.store(true, Ordering::SeqCst);
-        self.device_ready.store(true, Ordering::SeqCst);
+        self.error.store(true, Ordering::Relaxed);
+        self.restart.store(true, Ordering::Relaxed);
+        self.device_ready.store(true, Ordering::Relaxed);
     }
 
     pub fn clone(&self) -> DeviceState {
