@@ -239,8 +239,12 @@ impl SidDeviceServerThread {
                     if size >= 4 {
                         self.process_command(&mut stream, &data[0..size]).unwrap();
                     } else if size == 0 {
-                        println!("Client disconnected: {}\r", stream.peer_addr().unwrap());
-                        stream.shutdown(Shutdown::Both).unwrap();
+                        println!(
+                            "Client disconnected: {}\r",
+                            stream.peer_addr().map(|a| a.to_string()).unwrap_or_else(|_| "<unknown>".to_string())
+                        );
+
+                        let _ = stream.shutdown(Shutdown::Both);
                         break;
                     }
                 }
@@ -249,8 +253,12 @@ impl SidDeviceServerThread {
                 }
                 Err(e) => {
                     println!("ERROR: {}, {:?}\r", e, e.kind());
-                    println!("Terminating connection for client: {}\r", stream.peer_addr().unwrap());
-                    stream.shutdown(Shutdown::Both).unwrap();
+                    println!(
+                        "Terminating connection for client: {}\r",
+                        stream.peer_addr().map(|a| a.to_string()).unwrap_or_else(|_| "<unknown>".to_string())
+                    );
+
+                    let _ = stream.shutdown(Shutdown::Both);
                     break;
                 }
             }
