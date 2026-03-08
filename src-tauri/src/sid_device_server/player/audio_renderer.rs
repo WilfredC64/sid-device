@@ -11,7 +11,7 @@ use atomicring::AtomicRingBuffer;
 use cpal::{Device, FromSample, OutputCallbackInfo, SampleFormat, SizedSample, StreamConfig};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use crossbeam_channel::{Sender, Receiver, bounded};
-use rand::Rng;
+use rand::RngExt;
 use typed_builder::TypedBuilder;
 
 use resid::{chip_model, sampling_method, Sid};
