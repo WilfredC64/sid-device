@@ -59,6 +59,8 @@ pub enum SettingsCommand {
 }
 
 fn main() {
+    set_process_priority();
+
     let (mut device_sender, device_receiver): SidDeviceChannel = broadcast(1);
     device_sender.set_overflow(true);
 
@@ -124,6 +126,25 @@ fn main() {
             _ => {}
         }
     });
+}
+
+fn set_process_priority() {
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::System::Threading::{
+            GetCurrentProcess, SetPriorityClass, ABOVE_NORMAL_PRIORITY_CLASS,
+        };
+        unsafe {
+            SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
+        }
+    }
+    #[cfg(unix)]
+    {
+        const ABOVE_NORMAL_PRIORITY: i32 = -7;
+        unsafe {
+            libc::setpriority(libc::PRIO_PROCESS, 0, ABOVE_NORMAL_PRIORITY);
+        }
+    }
 }
 
 fn start_sid_device_thread(receiver: Receiver<(SettingsCommand, Option<i32>)>, settings: &Arc<Mutex<Settings>>, device_state: &DeviceState) {
