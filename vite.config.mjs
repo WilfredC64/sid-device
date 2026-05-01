@@ -18,7 +18,7 @@ export default defineConfig({
     build: {
         outDir,
         emptyOutDir: true,
-        rollupOptions: {
+        rolldownOptions: {
             input: {
                 settings: resolve(root, 'pages', 'settings', 'index.html'),
                 about: resolve(root, 'pages', 'about', 'index.html')
