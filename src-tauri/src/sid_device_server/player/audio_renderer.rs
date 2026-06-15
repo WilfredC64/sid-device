@@ -245,16 +245,16 @@ impl AudioRenderer {
 
         self.audio_thread = Some(thread::spawn(move || {
             let _ = match device_config.sample_format() {
-                SampleFormat::I8 => run::<i8>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
-                SampleFormat::U8 => run::<u8>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
-                SampleFormat::I16 => run::<i16>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
-                SampleFormat::U16 => run::<u16>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
-                SampleFormat::I32 => run::<i32>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
-                SampleFormat::U32 => run::<u32>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
-                SampleFormat::F32 => run::<f32>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
-                SampleFormat::I64 => run::<i64>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
-                SampleFormat::U64 => run::<u64>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
-                SampleFormat::F64 => run::<f64>(&device, &device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
+                SampleFormat::I8 => run::<i8>(&device, device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
+                SampleFormat::U8 => run::<u8>(&device, device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
+                SampleFormat::I16 => run::<i16>(&device, device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
+                SampleFormat::U16 => run::<u16>(&device, device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
+                SampleFormat::I32 => run::<i32>(&device, device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
+                SampleFormat::U32 => run::<u32>(&device, device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
+                SampleFormat::F32 => run::<f32>(&device, device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
+                SampleFormat::I64 => run::<i64>(&device, device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
+                SampleFormat::U64 => run::<u64>(&device, device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
+                SampleFormat::F64 => run::<f64>(&device, device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
                 _ => Ok(()),
             };
         }));
@@ -634,27 +634,23 @@ fn add_dithering_and_limit_output(sample: i32, dithering: i32) -> i16 {
     sample.saturating_add(dithering).clamp(i16::MIN as i32, i16::MAX as i32) as i16
 }
 
-fn run<T>(device: &Device, config: &StreamConfig, sound_buffer: Arc<AtomicRingBuffer<i16>>, should_stop: Arc<AtomicBool>, should_pause: Arc<AtomicBool>) -> Result<(), anyhow::Error>
+fn run<T>(device: &Device, config: StreamConfig, sound_buffer: Arc<AtomicRingBuffer<i16>>, should_stop: Arc<AtomicBool>, should_pause: Arc<AtomicBool>) -> Result<(), anyhow::Error>
 where
     T: SizedSample + FromSample<i16>
 {
-    let channels = config.channels as usize;
-
     let err_fn = |err| {
         AUDIO_ERROR.store(true, Ordering::SeqCst);
         println!("ERROR: {err}\r");
     };
 
     let output_stream = move |data: &mut [T], _: &OutputCallbackInfo| {
-        for frame in data.chunks_mut(channels) {
-            for sample_slot in frame.iter_mut() {
-                let sample_value = sound_buffer.try_pop().unwrap_or(0);
-                *sample_slot = T::from_sample(sample_value);
-            }
+        for sample_slot in data.iter_mut() {
+            *sample_slot = T::from_sample(sound_buffer.try_pop().unwrap_or(0));
         }
     };
 
     let stream = device.build_output_stream(config, output_stream, err_fn, None)?;
+    stream.pause()?;
     let mut is_paused = true;
 
     while !should_stop.load(Ordering::Relaxed) {
