@@ -24,11 +24,11 @@ futures-lite = "2.6.1"
 hostname = "0.4.2"
 os_info = "3.15.0"
 parking_lot = "0.12.5"
-rand = "0.10.1"
+rand = "0.10.2"
 resid-sys = { path = "resid-sys" }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-tauri = { version = "2.11.3", features = [ "tray-icon"] }
+tauri = { version = "2.11.5", features = [ "tray-icon"] }
 tauri-plugin-dialog = "2.7.1"
 thread-priority = "3.1.1"
 typed-builder = "0.23.2"
