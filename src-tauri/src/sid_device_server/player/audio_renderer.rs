@@ -1,4 +1,4 @@
-// Copyright (C) 2022 - 2023 Wilfred Bos
+// Copyright (C) 2022 - 2026 Wilfred Bos
 // Licensed under the GNU GPL v3 license. See the LICENSE file for the terms and conditions.
 
 use parking_lot::Mutex;
@@ -12,6 +12,7 @@ use cpal::{Device, FromSample, OutputCallbackInfo, SampleFormat, SizedSample, St
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use crossbeam_channel::{Sender, Receiver, bounded};
 use rand::RngExt;
+use rand::rngs::SmallRng;
 use typed_builder::TypedBuilder;
 
 use resid::{chip_model, sampling_method, Sid};
@@ -44,6 +45,42 @@ const CYCLES_IN_BUFFER_THRESHOLD: u32 = 10_000;
 const SOUND_BUFFER_SIZE_THRESHOLD: usize = 5_000;
 
 const STOP_PAUSE_LATENCY_IN_MILLIS: u64 = 10;
+
+struct EmulationBuffers {
+    per_sid: Vec<Vec<i16>>,
+    stereo_out: Vec<i16>,
+}
+
+impl EmulationBuffers {
+    fn new(sid_count: usize) -> Self {
+        Self {
+            per_sid: (0..sid_count).map(|_| vec![0i16; SAMPLE_BUFFER_SIZE]).collect(),
+            stereo_out: vec![0i16; SAMPLE_BUFFER_SIZE * 2],
+        }
+    }
+
+    fn resize(&mut self, sid_count: usize) {
+        self.per_sid.resize_with(sid_count, || vec![0i16; SAMPLE_BUFFER_SIZE]);
+    }
+}
+
+struct EmulationState {
+    sids: Vec<Sid>,
+    buffers: EmulationBuffers,
+    rng: SmallRng,
+}
+
+impl EmulationState {
+    fn new(config: &mut Config) -> Self {
+        let mut state = Self {
+            sids: vec![],
+            buffers: EmulationBuffers::new(config.sid_count as usize),
+            rng: rand::make_rng(),
+        };
+        configure_sids(&mut state, config);
+        state
+    }
+}
 
 #[derive(Copy, Clone)]
 pub struct SidWrite {
@@ -239,7 +276,7 @@ impl AudioRenderer {
         let should_pause = self.should_pause.clone();
         let sound_buffer_clone = self.sound_buffer.clone();
 
-        if log_device_name && audio_device_number.is_some() {
+        if log_device_name {
             println!("Using audio device: \"{}\" (sample rate: {})\r", get_device_display_name(&device), sample_rate);
         }
 
@@ -304,12 +341,7 @@ impl AudioRenderer {
     ) {
         let _ = set_current_thread_priority(ThreadPriority::Max);
 
-        let mut sids: Vec<Sid> = vec![];
-
-        {
-            let mut config = config.lock();
-            configure_sids(&mut sids, &mut config);
-        }
+        let mut state = EmulationState::new(&mut config.lock());
 
         let mut last_activity = Instant::now();
         loop {
@@ -330,18 +362,18 @@ impl AudioRenderer {
                 device_state.should_pause.store(true, Ordering::Relaxed);
             }
 
-            let cmd = process_player_command(in_cmd_receiver_clone, &mut config, &mut sids);
+            let cmd = process_player_command(in_cmd_receiver_clone, &mut config, &mut state.sids);
 
             if let Some((command, param1)) = cmd {
                 if command == PlayerCommand::Read {
                     while !queue.is_empty() {
-                        generate_sample(sound_buffer, queue, &mut sids, &device_state.cycles_in_buffer, &mut config);
+                        generate_sample(sound_buffer, queue, &device_state.cycles_in_buffer, &mut config, &mut state);
                     }
 
                     let reg = param1.unwrap_or(0);
                     let sid_num = min(reg >> 5, config.sid_count - 1) as usize;
 
-                    let sid_env_out = sids[sid_num].read(reg as u32 & 0x1f) as u8;
+                    let sid_env_out = state.sids[sid_num].read(reg as u32 & 0x1f) as u8;
                     let _ = out_sid_read_sender.send(sid_env_out);
                 }
             } else {
@@ -350,7 +382,7 @@ impl AudioRenderer {
                     continue;
                 }
 
-                try_generate_sample(sound_buffer, queue, &mut sids, &device_state.cycles_in_buffer, &mut config);
+                try_generate_sample(sound_buffer, queue, &device_state.cycles_in_buffer, &mut config, &mut state);
                 if Self::has_enough_data(sound_buffer, &device_state) {
                     thread::sleep(Duration::from_millis(1));
                 }
@@ -495,8 +527,9 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
     None
 }
 
-fn configure_sids(sids: &mut Vec<Sid>, config: &mut Config) {
-    sids.clear();
+fn configure_sids(state: &mut EmulationState, config: &mut Config) {
+    state.sids.clear();
+    state.buffers.resize(config.sid_count as usize);
 
     for i in 0..config.sid_count {
         let mut sid = Sid::new();
@@ -524,42 +557,44 @@ fn configure_sids(sids: &mut Vec<Sid>, config: &mut Config) {
 
         sid.clock_delta(0xffff);
 
-        sids.push(sid);
+        state.sids.push(sid);
     }
 
     config.config_changed = false;
 }
 
-fn try_generate_sample(audio_output_stream: &Arc<AtomicRingBuffer<i16>>, sid_write_queue: &Arc<AtomicRingBuffer<SidWrite>>, sids: &mut Vec<Sid>, cycles_in_buffer: &Arc<AtomicU32>, config: &mut Config) {
+fn try_generate_sample(
+    audio_output_stream: &Arc<AtomicRingBuffer<i16>>,
+    sid_write_queue: &Arc<AtomicRingBuffer<SidWrite>>,
+    cycles_in_buffer: &Arc<AtomicU32>,
+    config: &mut Config,
+    state: &mut EmulationState
+) {
     if !sid_write_queue.is_empty() && audio_output_stream.len() < AUDIO_STREAM_LIMIT {
-        generate_sample(audio_output_stream, sid_write_queue, sids, cycles_in_buffer, config);
+        generate_sample(audio_output_stream, sid_write_queue, cycles_in_buffer, config, state);
     }
 }
 
-fn generate_sample(audio_output_stream: &Arc<AtomicRingBuffer<i16>>, sid_write_queue: &Arc<AtomicRingBuffer<SidWrite>>, sids: &mut Vec<Sid>, cycles_in_buffer: &Arc<AtomicU32>, config: &mut Config) {
+fn generate_sample(
+    audio_output_stream: &Arc<AtomicRingBuffer<i16>>,
+    sid_write_queue: &Arc<AtomicRingBuffer<SidWrite>>,
+    cycles_in_buffer: &Arc<AtomicU32>,
+    config: &mut Config,
+    state: &mut EmulationState
+) {
     if audio_output_stream.len() > AUDIO_STREAM_MAX_LIMIT {
         return;
     }
 
     if config.config_changed {
-        configure_sids(sids, config);
+        configure_sids(state, config);
     }
 
     let mut total_cycles = 0;
-    let mut sample_buffers = vec![[0i16; SAMPLE_BUFFER_SIZE]; sids.len()];
 
-    let mut audio_buffer = [0i16; SAMPLE_BUFFER_SIZE * 2];    // for left and right channel
-
-    let mut rng = rand::rng();
-    let mut prev_dithering = 0;
-    let mut generate_next_dithering_value = || -> i32 {
-        let tmp_value = prev_dithering;
-        prev_dithering = rng.random::<i32>() & 1;
-        prev_dithering - tmp_value
-    };
-
-    let mut store_audio = |audio_buffer: &mut [i16; SAMPLE_BUFFER_SIZE * 2], i: usize, left, right| {
-        let dithering = generate_next_dithering_value();
+    let mut store_audio = |audio_buffer: &mut [i16], i: usize, left, right| {
+        let rand = state.rng.random::<u64>();
+        let dithering = (rand & 1) as i32 - ((rand >> 1) & 1) as i32;
         audio_buffer[i * 2] = add_dithering_and_limit_output(left, dithering);
         audio_buffer[i * 2 + 1] = add_dithering_and_limit_output(right, dithering);
     };
@@ -579,40 +614,41 @@ fn generate_sample(audio_output_stream: &Arc<AtomicRingBuffer<i16>>, sid_write_q
                     let mut total_cycles_left = 0;
 
                     for sid_num in 0..config.sid_count as usize {
-                        let (sample_length, cycles_left) = sids[sid_num].sample(cycles, &mut sample_buffers[sid_num], 1);
+                        let (sample_length, cycles_left) = state.sids[sid_num].sample(cycles, &mut state.buffers.per_sid[sid_num], 1);
 
                         total_sample_length = sample_length;
                         total_cycles_left = cycles_left;
                     }
 
                     if config.sid_count == 1 {
-                        for (i, &sample_buffer) in sample_buffers[0].iter().take(total_sample_length).enumerate() {
-                            store_audio(&mut audio_buffer, i, sample_buffer as i32, sample_buffer as i32);
+                        for i in 0..total_sample_length {
+                            let sample = state.buffers.per_sid[0][i] as i32;
+                            store_audio(&mut state.buffers.stereo_out, i, sample, sample);
                         }
                     } else {
                         for i in 0..total_sample_length {
                             let mut left = 0;
                             let mut right = 0;
 
-                            for (j, sid_sample_buffer) in sample_buffers.iter().take(config.sid_count as usize).enumerate() {
+                            for j in 0..config.sid_count as usize {
                                 let panning_left = config.position_left[j];
                                 let panning_right = config.position_right[j];
-                                left += sid_sample_buffer[i] as i32 * panning_left / 100;
-                                right += sid_sample_buffer[i] as i32 * panning_right / 100;
+                                left += state.buffers.per_sid[j][i] as i32 * panning_left / 100;
+                                right += state.buffers.per_sid[j][i] as i32 * panning_right / 100;
                             }
 
-                            store_audio(&mut audio_buffer, i, left, right);
+                            store_audio(&mut state.buffers.stereo_out, i, left, right);
                         }
                     }
 
-                    for sample in audio_buffer.iter().take(total_sample_length * 2) {
+                    for sample in state.buffers.stereo_out.iter().take(total_sample_length * 2) {
                         let _ = audio_output_stream.try_push(*sample);
                     }
                     cycles = total_cycles_left;
                 }
 
                 let sid_num = min(sid_write.reg >> 5, (config.sid_count - 1) as u8);
-                sids[sid_num as usize].write((sid_write.reg & 0x1f) as u32, sid_write.data as u32);
+                state.sids[sid_num as usize].write((sid_write.reg & 0x1f) as u32, sid_write.data as u32);
             }
         } else {
             break;
