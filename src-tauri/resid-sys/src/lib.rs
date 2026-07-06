@@ -1,23 +1,87 @@
-// Copyright (C) 2022 Wilfred Bos
+// Copyright (C) 2022 - 2026 Wilfred Bos
 // Licensed under the GNU GPL v3 license. See the LICENSE file for the terms and conditions.
 
 #![allow(clippy::upper_case_acronyms)]
-#![allow(unused_imports)]
-use autocxx::prelude::*;
 
-use ffi::reSID::*;
-use std::pin::Pin;
+use cxx::UniquePtr;
 
-include_cpp! {
-    #include "resid10/sid.h"
-    safety!(unsafe)
-    generate!("reSID::SID")
+#[cxx::bridge]
+mod ffi {
+    unsafe extern "C++" {
+        include!("resid_bridge.h");
+
+        #[namespace = "reSID"]
+        type SID;
+
+        #[namespace = "resid_bridge"]
+        fn new_sid() -> UniquePtr<SID>;
+
+        #[namespace = "resid_bridge"]
+        fn set_chip_model(sid: Pin<&mut SID>, model: u32);
+
+        #[namespace = "resid_bridge"]
+        fn set_voice_mask(sid: Pin<&mut SID>, mask: u32);
+
+        #[namespace = "resid_bridge"]
+        fn enable_filter(sid: Pin<&mut SID>, enable: bool);
+
+        #[namespace = "resid_bridge"]
+        fn adjust_filter_bias(sid: Pin<&mut SID>, dac_bias: f64);
+
+        #[namespace = "resid_bridge"]
+        fn enable_external_filter(sid: Pin<&mut SID>, enable: bool);
+
+        #[namespace = "resid_bridge"]
+        fn set_sampling_parameters(sid: Pin<&mut SID>, clock_freq: f64, method: u32, sample_freq: f64, pass_freq: f64, filter_scale: f64) -> bool;
+
+        #[namespace = "resid_bridge"]
+        fn adjust_sampling_frequency(sid: Pin<&mut SID>, sample_freq: f64);
+
+        #[namespace = "resid_bridge"]
+        fn clock(sid: Pin<&mut SID>);
+
+        #[namespace = "resid_bridge"]
+        fn clock_delta(sid: Pin<&mut SID>, delta_t: i32);
+
+        #[namespace = "resid_bridge"]
+        fn clock_buffer(sid: Pin<&mut SID>, delta_t: &mut i32, buf: &mut [i16], interleave: i32) -> i32;
+
+        #[namespace = "resid_bridge"]
+        fn reset(sid: Pin<&mut SID>);
+
+        #[namespace = "resid_bridge"]
+        fn read(sid: Pin<&mut SID>, reg: u32) -> u32;
+
+        #[namespace = "resid_bridge"]
+        fn write(sid: Pin<&mut SID>, reg: u32, value: u32);
+
+        #[namespace = "resid_bridge"]
+        fn input(sid: Pin<&mut SID>, sample: i16);
+    }
 }
 
 const FILTER_SCALE: f64 = 0.97;
 
+#[repr(u32)]
+#[derive(Clone, PartialEq)]
+#[allow(non_camel_case_types)]
+pub enum chip_model {
+    MOS6581 = 0,
+    MOS8580 = 1,
+}
+
+#[repr(u32)]
+#[derive(Clone, PartialEq)]
+#[allow(non_camel_case_types)]
+pub enum sampling_method {
+    SAMPLE_FAST = 0,
+    SAMPLE_INTERPOLATE = 1,
+    SAMPLE_RESAMPLE = 2,
+    SAMPLE_RESAMPLE_FASTMEM = 3,
+}
+
 pub struct Sid {
-    sid: UniquePtr<SID>
+    sid: UniquePtr<ffi::SID>,
 }
 
 impl Default for Sid {
@@ -28,75 +92,65 @@ impl Default for Sid {
 
 impl Sid {
     pub fn new() -> Self {
-        Sid { sid: SID::new().within_unique_ptr() }
+        Sid { sid: ffi::new_sid() }
     }
 
     pub fn adjust_filter_bias(&mut self, dac_bias: f64) {
-        SID::adjust_filter_bias(self.sid.pin_mut(), dac_bias);
+        ffi::adjust_filter_bias(self.sid.pin_mut(), dac_bias);
     }
 
     pub fn set_chip_model(&mut self, model: chip_model) {
-        SID::set_chip_model(self.sid.pin_mut(), model);
+        ffi::set_chip_model(self.sid.pin_mut(), model as u32);
     }
 
     pub fn set_sampling_parameters(&mut self, clock_freq: f64, method: sampling_method, sample_freq: f64) -> bool {
         let pass_freq = sample_freq * 0.9 / 2.0;
-        SID::set_sampling_parameters(self.sid.pin_mut(), clock_freq, method, sample_freq, pass_freq, FILTER_SCALE)
+        ffi::set_sampling_parameters(self.sid.pin_mut(), clock_freq, method as u32, sample_freq, pass_freq, FILTER_SCALE)
     }
 
     pub fn adjust_sampling_frequency(&mut self, sample_freq: f64) {
-        SID::adjust_sampling_frequency(self.sid.pin_mut(), sample_freq)
+        ffi::adjust_sampling_frequency(self.sid.pin_mut(), sample_freq);
     }
 
     pub fn enable_filter(&mut self, enable: bool) {
-        SID::enable_filter(self.sid.pin_mut(), enable);
+        ffi::enable_filter(self.sid.pin_mut(), enable);
     }
 
     pub fn enable_external_filter(&mut self, enable: bool) {
-        SID::enable_external_filter(self.sid.pin_mut(), enable);
+        ffi::enable_external_filter(self.sid.pin_mut(), enable);
     }
 
     pub fn set_voice_mask(&mut self, mask: u32) {
-        SID::set_voice_mask(self.sid.pin_mut(), c_uint::from(mask));
+        ffi::set_voice_mask(self.sid.pin_mut(), mask);
     }
 
     pub fn input(&mut self, sample: i16) {
-        SID::input(self.sid.pin_mut(), c_short::from(sample));
+        ffi::input(self.sid.pin_mut(), sample);
     }
 
     pub fn reset(&mut self) {
-        SID::reset(self.sid.pin_mut());
+        ffi::reset(self.sid.pin_mut());
     }
 
     pub fn read(&mut self, reg: u32) -> u32 {
-        u32::from(SID::read(self.sid.pin_mut(), c_uint::from(reg)))
+        ffi::read(self.sid.pin_mut(), reg)
     }
 
     pub fn write(&mut self, reg: u32, data: u32) {
-        SID::write(self.sid.pin_mut(), c_uint::from(reg), c_uint::from(data));
+        ffi::write(self.sid.pin_mut(), reg, data);
     }
 
     pub fn clock(&mut self) {
-        SID::clock(self.sid.pin_mut());
+        ffi::clock(self.sid.pin_mut());
     }
 
     pub fn clock_delta(&mut self, cycles: u32) {
-        SID::clock1(self.sid.pin_mut(), c_int::from(cycles as i32));
+        ffi::clock_delta(self.sid.pin_mut(), cycles as i32);
     }
 
     pub fn sample(&mut self, cycles: u32, buffer: &mut [i16], interleave: i32) -> (usize, u32) {
-        let mut delta = c_int::from(cycles as i32);
-        let offset = unsafe {
-            SID::clock2(
-                self.sid.pin_mut(),
-                Pin::new(&mut delta),
-                buffer.as_mut_ptr() as *mut c_short,
-                c_int::from(buffer.len() as i32),
-                c_int::from(interleave)
-            )
-        };
-        (i32::from(offset) as usize, i32::from(delta) as u32)
+        let mut delta = cycles as i32;
+        let offset = ffi::clock_buffer(self.sid.pin_mut(), &mut delta, buffer, interleave);
+        (offset as usize, delta as u32)
     }
 }
-
-pub use ffi::reSID::{chip_model, sampling_method};

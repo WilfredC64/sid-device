@@ -13,12 +13,10 @@ name = "resid"
 crate-type = ["rlib"]
 
 [dependencies]
-autocxx = "0.30.0"
 cxx = "1.0"
 
 [build-dependencies]
-autocxx-build = "0.30.0"
-miette = { version = "5.10.0", features = [ "fancy" ] }
+cxx-build = "1.0"
 
 [profile.release]
 panic = "abort"

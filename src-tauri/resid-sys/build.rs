@@ -1,6 +1,6 @@
 const USE_NEW_FILTER: bool = true;
 
-fn main() -> miette::Result<()> {
+fn main() {
     let mut src = vec![
         "src/resid10/dac.cc",
         "src/resid10/envelope.cc",
@@ -10,7 +10,8 @@ fn main() -> miette::Result<()> {
         "src/resid10/version.cc",
         "src/resid10/voice.cc",
         "src/resid10/wave.cc",
-        ];
+        "src/resid_bridge.cc",
+    ];
 
     if USE_NEW_FILTER {
         src.push("src/resid10/filter8580new.cc");
@@ -18,13 +19,12 @@ fn main() -> miette::Result<()> {
         src.push("src/resid10/filter.cc");
     }
 
-    let path = std::path::PathBuf::from("src");
-    let mut builder = autocxx_build::Builder::new("src/lib.rs", [&path]).build()?;
-
+    let mut builder = cxx_build::bridge("src/lib.rs");
     let build = builder
+        .files(src)
+        .include("src")
         .define("VERSION", Some("\"1.0\""))
         .define("NEW_8580_FILTER", Some(if USE_NEW_FILTER { "1" } else { "0" }))
-        .files(src)
         .flag_if_supported("-Wno-psabi")
         .warnings(false);
 
@@ -34,6 +34,7 @@ fn main() -> miette::Result<()> {
     build.compile("resid");
 
     println!("cargo:rerun-if-changed=src/lib.rs");
+    println!("cargo:rerun-if-changed=src/resid_bridge.h");
+    println!("cargo:rerun-if-changed=src/resid_bridge.cc");
     println!("cargo:rerun-if-changed=src/resid10/");
-    Ok(())
 }
