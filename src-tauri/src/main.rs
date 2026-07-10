@@ -109,7 +109,7 @@ fn main() {
 
     app.run({
         move |app_handle, e| match e {
-            RunEvent::ExitRequested { api: _, .. } => {
+            RunEvent::ExitRequested { .. } => {
                 let device_state = app_handle.state::<DeviceState>();
                 device_state.quit.store(true, Ordering::Relaxed);
             }

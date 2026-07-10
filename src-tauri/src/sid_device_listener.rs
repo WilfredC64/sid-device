@@ -71,8 +71,8 @@ impl SidDeviceListener {
     }
 
     pub fn respond(&self, client: &Client) -> io::Result<usize> {
-        let client_address = format!("{}:{}", &client.ip_address, &client.port);
-        let data = format!("{},{},{}", MAGIC_ID, &self.hostname, &self.os_name);
+        let client_address = format!("{}:{}", client.ip_address, client.port);
+        let data = format!("{},{},{}", MAGIC_ID, self.hostname, self.os_name);
         self.socket.send_to(data.as_bytes(), client_address)
     }
 
