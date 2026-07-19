@@ -11,8 +11,6 @@ use atomicring::AtomicRingBuffer;
 use cpal::{Device, FromSample, OutputCallbackInfo, SampleFormat, SizedSample, StreamConfig};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use crossbeam_channel::{Sender, Receiver, bounded};
-use rand::RngExt;
-use rand::rngs::SmallRng;
 use typed_builder::TypedBuilder;
 
 use resid::{chip_model, sampling_method, Sid};
@@ -67,7 +65,6 @@ impl EmulationBuffers {
 struct EmulationState {
     sids: Vec<Sid>,
     buffers: EmulationBuffers,
-    rng: SmallRng,
 }
 
 impl EmulationState {
@@ -75,7 +72,6 @@ impl EmulationState {
         let mut state = Self {
             sids: vec![],
             buffers: EmulationBuffers::new(config.sid_count as usize),
-            rng: rand::make_rng(),
         };
         configure_sids(&mut state, config);
         state
@@ -592,8 +588,8 @@ fn generate_sample(
 
     let mut total_cycles = 0;
 
-    let mut store_audio = |audio_buffer: &mut [i16], i: usize, left, right| {
-        let rand = state.rng.random::<u64>();
+    let store_audio = |audio_buffer: &mut [i16], i: usize, left, right| {
+        let rand = fastrand::u64(..);
         let dithering = (rand & 1) as i32 - ((rand >> 1) & 1) as i32;
         audio_buffer[i * 2] = add_dithering_and_limit_output(left, dithering);
         audio_buffer[i * 2 + 1] = add_dithering_and_limit_output(right, dithering);
