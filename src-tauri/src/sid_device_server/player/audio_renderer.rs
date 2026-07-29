@@ -46,14 +46,12 @@ const STOP_PAUSE_LATENCY_IN_MILLIS: u64 = 10;
 
 struct EmulationBuffers {
     per_sid: Vec<Vec<i16>>,
-    stereo_out: Vec<i16>,
 }
 
 impl EmulationBuffers {
     fn new(sid_count: usize) -> Self {
         Self {
             per_sid: (0..sid_count).map(|_| vec![0i16; SAMPLE_BUFFER_SIZE]).collect(),
-            stereo_out: vec![0i16; SAMPLE_BUFFER_SIZE * 2],
         }
     }
 
@@ -588,11 +586,11 @@ fn generate_sample(
 
     let mut total_cycles = 0;
 
-    let store_audio = |audio_buffer: &mut [i16], i: usize, left, right| {
+    let push_audio = |left, right| {
         let rand = fastrand::u64(..);
         let dithering = (rand & 1) as i32 - ((rand >> 1) & 1) as i32;
-        audio_buffer[i * 2] = add_dithering_and_limit_output(left, dithering);
-        audio_buffer[i * 2 + 1] = add_dithering_and_limit_output(right, dithering);
+        let _ = audio_output_stream.try_push(add_dithering_and_limit_output(left, dithering));
+        let _ = audio_output_stream.try_push(add_dithering_and_limit_output(right, dithering));
     };
 
     while total_cycles < CYCLES_PER_SAMPLE {
@@ -619,7 +617,7 @@ fn generate_sample(
                     if config.sid_count == 1 {
                         for i in 0..total_sample_length {
                             let sample = state.buffers.per_sid[0][i] as i32;
-                            store_audio(&mut state.buffers.stereo_out, i, sample, sample);
+                            push_audio(sample, sample);
                         }
                     } else {
                         for i in 0..total_sample_length {
@@ -633,13 +631,10 @@ fn generate_sample(
                                 right += state.buffers.per_sid[j][i] as i32 * panning_right / 100;
                             }
 
-                            store_audio(&mut state.buffers.stereo_out, i, left, right);
+                            push_audio(left, right);
                         }
                     }
 
-                    for sample in state.buffers.stereo_out.iter().take(total_sample_length * 2) {
-                        let _ = audio_output_stream.try_push(*sample);
-                    }
                     cycles = total_cycles_left;
                 }
 
