@@ -379,7 +379,7 @@ impl AudioRenderer {
                 }
 
                 try_generate_sample(sound_buffer, queue, &device_state.cycles_in_buffer, &mut config, &mut state);
-                if Self::has_enough_data(sound_buffer, &device_state) {
+                if queue.is_empty() || Self::has_enough_data(sound_buffer, &device_state) {
                     thread::sleep(Duration::from_millis(1));
                 }
             }
