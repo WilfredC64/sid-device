@@ -260,7 +260,15 @@ impl AudioRenderer {
 
     fn start_audio_thread(&mut self, audio_device_number: Option<i32>, log_device_name: bool) {
         let device = Self::get_audio_device(audio_device_number);
-        let device_config = device.default_output_config().unwrap();
+        let device_config = match device.default_output_config() {
+            Ok(cfg) => cfg,
+            Err(e) => {
+                println!("ERROR: Failed to get audio device config: {e}\r");
+                AUDIO_ERROR.store(true, Ordering::SeqCst);
+                return;
+            }
+        };
+
         let sample_rate = device_config.sample_rate();
 
         let mut config = self.config.lock();
@@ -678,7 +686,7 @@ where
         }
     };
 
-    let stream = device.build_output_stream(config, output_stream, err_fn, None)?;
+    let stream = device.build_output_stream(&config, output_stream, err_fn, None)?;
     stream.pause()?;
     let mut is_paused = true;
 
