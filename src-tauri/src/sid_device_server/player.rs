@@ -79,13 +79,13 @@ impl Player {
         self.queue_started.store(true, Ordering::Relaxed);
     }
 
-    pub fn write_to_sid(&mut self, reg: u8, data: u8, cycles: u16) {
+    pub fn write_to_sid(&mut self, reg: u16, data: u8, cycles: u16) {
         let sid_write = SidWrite {reg, data, cycles};
         let _ = self.queue.try_push(sid_write);
         self.cycles_in_buffer.fetch_add(cycles as u32, Ordering::Relaxed);
     }
 
-    pub fn read_from_sid(&mut self, reg: u8, cycles: u16) -> u8 {
+    pub fn read_from_sid(&mut self, reg: u16, cycles: u16) -> u8 {
         self.queue_started.store(true, Ordering::Relaxed);
         self.dummy_write(reg, cycles);
 
@@ -150,7 +150,7 @@ impl Player {
         self.queue_started.store(false, Ordering::Relaxed);
     }
 
-    fn dummy_write(&mut self, reg: u8, cycles: u16) {
-        self.write_to_sid((reg & 0xe0) + 0x1e, 0, cycles);
+    fn dummy_write(&mut self, reg: u16, cycles: u16) {
+        self.write_to_sid((reg & 0x1e0) + 0x1e, 0, cycles);
     }
 }

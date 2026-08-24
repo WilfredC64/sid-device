@@ -20,9 +20,11 @@ const LOCAL_HOST: &str = "127.0.0.1";
 const ALLOW_ALL_HOST: &str = "0.0.0.0";
 const DEFAULT_PORT_NUMBER: &str = "6581";
 
-const PROTOCOL_VERSION: u8 = 4;
+const MAX_SID_CHIPS: u8 = 15;
+const PROTOCOL_VERSION: u8 = 5;
 const NUMBER_OF_DEVICES: u8 = 2;
 const SID_WRITE_SIZE: usize = 4;
+const SID_WRITE_SIZE_EX: usize = 5;
 
 #[allow(dead_code)]
 #[derive(Copy, Clone)]
@@ -72,6 +74,9 @@ enum Command {
     SetFadeIn,
     SetFadeOut,
     SetPsidHeader,
+    TryWriteEx,
+    TryReadEx,
+    SetSidPositionEx,
     Unknown
 }
 
@@ -97,6 +102,9 @@ impl Command {
             16 => Command::SetFadeIn,
             17 => Command::SetFadeOut,
             18 => Command::SetPsidHeader,
+            19 => Command::TryWriteEx,
+            20 => Command::TryReadEx,
+            21 => Command::SetSidPositionEx,
             _ => Command::Unknown,
         }
     }
@@ -290,11 +298,11 @@ impl SidDeviceServerThread {
                 if self.player.has_error() {
                     println!("ERROR: Audio error occurred.\r");
                     stream.shutdown(Shutdown::Both)?;
-                } else if data_length % 4 != 0 {
+                } else if data_length % SID_WRITE_SIZE != 0 {
                     println!("ERROR: TryWrite write data size for write data.\r");
                     stream.write_all(&[CommandResponse::Error as u8])?;
                 } else if !self.player.has_max_data_in_buffer() {
-                    if data_length >= 4 {
+                    if data.len() >= 4 {
                         let _ = self.process_writes(&data[4..]);
                     }
                     stream.write_all(&[CommandResponse::Ok as u8])?;
@@ -316,6 +324,22 @@ impl SidDeviceServerThread {
                     stream.write_all(&[CommandResponse::Busy as u8])?;
                 }
             }
+            Command::TryWriteEx => {
+                if self.player.has_error() {
+                    println!("ERROR: Audio error occurred.\r");
+                    stream.shutdown(Shutdown::Both)?;
+                } else if data_length % SID_WRITE_SIZE_EX != 0 {
+                    println!("ERROR: TryWriteEx write data size for write data.\r");
+                    stream.write_all(&[CommandResponse::Error as u8])?;
+                } else if !self.player.has_max_data_in_buffer() {
+                    if data.len() >= 4 {
+                        let _ = self.process_writes_ex(&data[4..]);
+                    }
+                    stream.write_all(&[CommandResponse::Ok as u8])?;
+                } else {
+                    stream.write_all(&[CommandResponse::Busy as u8])?;
+                }
+            }
             Command::TryDelay => {
                 if self.player.has_error() {
                     println!("ERROR: Audio error occurred.\r");
@@ -325,7 +349,7 @@ impl SidDeviceServerThread {
                     stream.write_all(&[CommandResponse::Error as u8])?;
                 } else if !self.player.has_max_data_in_buffer() {
                     let cycles = ((data[4] as u16) << 8) + data[5] as u16;
-                    self.player.write_to_sid(0x1e + sid_number * 0x20, 0, cycles);
+                    self.player.write_to_sid((0x1e + sid_number * 0x20) as u16, 0, cycles);
                     if self.player.has_min_data_in_buffer() {
                         self.player.start_draining();
                     }
@@ -367,11 +391,11 @@ impl SidDeviceServerThread {
                 stream.write_all(&[CommandResponse::Ok as u8])?;
             }
             Command::TrySetSidCount => {
-                if sid_number > 0 && sid_number <= 8 {
+                if sid_number > 0 && sid_number <= MAX_SID_CHIPS {
                     self.player.set_sid_count(sid_number as i32);
                     stream.write_all(&[CommandResponse::Ok as u8])?;
                 } else {
-                    println!("ERROR: TrySetSidCount sid count should be in range 1..8.\r");
+                    println!("ERROR: TrySetSidCount sid count should be in range 1..{}.\r", MAX_SID_CHIPS);
                     stream.write_all(&[CommandResponse::Error as u8])?;
                 }
             }
@@ -432,7 +456,7 @@ impl SidDeviceServerThread {
             let cycles = ((data[n] as u16) << 8) + data[n + 1] as u16;
             let reg = data[n + 2];
             let val = data[n + 3];
-            self.player.write_to_sid(reg, val, cycles);
+            self.player.write_to_sid(reg as u16, val, cycles);
         }
 
         if self.player.has_min_data_in_buffer() {
@@ -442,6 +466,31 @@ impl SidDeviceServerThread {
         if data.len() == write_data_length + 3 {
             let cycles = ((data[write_data_length] as u16) << 8) + data[write_data_length + 1] as u16;
             let reg = data[write_data_length + 2];
+            self.player.read_from_sid(reg as u16, cycles)
+        } else {
+            0
+        }
+    }
+
+    fn process_writes_ex(&mut self, data: &[u8]) -> u8 {
+        let number_of_sid_writes = data.len() / SID_WRITE_SIZE_EX;
+        let write_data_length = number_of_sid_writes * SID_WRITE_SIZE_EX;
+
+        for n in (0..write_data_length).step_by(SID_WRITE_SIZE_EX) {
+            let cycles = ((data[n] as u16) << 8) + data[n + 1] as u16;
+            let reg = ((data[n + 2] as u16) << 8) + data[n + 3] as u16 & 0x1ff;
+
+            let val = data[n + 4];
+            self.player.write_to_sid(reg, val, cycles);
+        }
+
+        if self.player.has_min_data_in_buffer() {
+            self.player.start_draining();
+        }
+
+        if data.len() == write_data_length + 4 {
+            let cycles = ((data[write_data_length] as u16) << 8) + data[write_data_length + 1] as u16;
+            let reg = ((data[write_data_length + 2] as u16) << 8) + data[write_data_length + 3] as u16 & 0x1ff;
             self.player.read_from_sid(reg, cycles)
         } else {
             0

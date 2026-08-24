@@ -78,7 +78,7 @@ impl EmulationState {
 
 #[derive(Copy, Clone)]
 pub struct SidWrite {
-    pub reg: u8,
+    pub reg: u16,
     pub data: u8,
     pub cycles: u16,
 }
@@ -640,7 +640,7 @@ fn generate_sample(
                     cycles = total_cycles_left;
                 }
 
-                let sid_num = min(sid_write.reg >> 5, (config.sid_count - 1) as u8);
+                let sid_num = min(sid_write.reg >> 5, (config.sid_count - 1) as u16);
                 state.sids[sid_num as usize].write((sid_write.reg & 0x1f) as u32, sid_write.data as u32);
             }
         } else {
