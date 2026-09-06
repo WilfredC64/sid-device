@@ -44,9 +44,7 @@ If you want to build the application on Raspberry Pi, make sure to change the "t
 ## Documentation
 
 For documentation about the network SID interface, see the
-[Network SID Device V4](https://htmlpreview.github.io/?https://github.com/WilfredC64/acid64c/blob/master/docs/network_sid_device_v4.html) specification,
-converted from the
-[JSidplay2](https://sourceforge.net/p/jsidplay2/code/HEAD/tree/trunk/jsidplay2/src/main/asciidoc/netsiddev.adoc) project.
+[Network SID Device V5](https://github.com/WilfredC64/acid64c/blob/master/docs/netsiddev.adoc).
 
 
 ## Thanks
