@@ -467,8 +467,8 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
                     let position = ((param1 & 0xff) as i8) as i32;
                     let sid_number = param1 >> 8;
                     if sid_number >= 0 && sid_number < config.sid_count {
-                        config.position_left[sid_number as usize] = if position <= 0 { 100 } else { 100 - position };
-                        config.position_right[sid_number as usize] = if position >= 0 { 100 } else { 100 + position };
+                        config.position_left[sid_number as usize] = if position >= 0 { 100 } else { 100 + position };
+                        config.position_right[sid_number as usize] = if position <= 0 { 100 } else { 100 - position };
                     }
                 }
             }
