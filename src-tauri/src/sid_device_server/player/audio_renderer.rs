@@ -95,7 +95,9 @@ pub enum PlayerCommand {
     SetFilterBias6581,
     SetSamplingFrequency,
     Reset,
-    Read
+    Read,
+    EnableFmOpl,
+    DisableFmOpl,
 }
 
 struct DeviceState {
@@ -117,6 +119,7 @@ pub struct Config {
     pub position_right: Vec<i32>,
     pub digiboost: bool,
     pub filter_bias_6581: f64,
+    pub fm_opl_enabled: bool,
 
     #[builder(default=false)]
     pub config_changed: bool
@@ -409,6 +412,7 @@ impl AudioRenderer {
             .position_left(vec![0])
             .position_right(vec![0])
             .digiboost(false)
+            .fm_opl_enabled(false)
             .filter_bias_6581(DEFAULT_FILTER_BIAS_6581)
             .build()
     }
@@ -501,6 +505,12 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
                         sid.input(0);
                     }
                 }
+            }
+            PlayerCommand::EnableFmOpl => {
+                config.fm_opl_enabled = true;
+            }
+            PlayerCommand::DisableFmOpl => {
+                config.fm_opl_enabled = false;
             }
             PlayerCommand::SetFilterBias6581 => {
                 if let Some(param1) = param1 {
@@ -648,8 +658,17 @@ fn generate_sample(
                     cycles = total_cycles_left;
                 }
 
-                let sid_num = min(sid_write.reg >> 5, (config.sid_count - 1) as u16);
-                state.sids[sid_num as usize].write((sid_write.reg & 0x1f) as u32, sid_write.data as u32);
+                if sid_write.reg >= 0x200 && sid_write.reg < 0x300 {
+                    if config.fm_opl_enabled {
+                        // TODO: Implement FM OPL support
+                        // let opl_reg = sid_write.reg - 0x200;
+                        // let opl_data = sid_write.data;
+                        // fm_opl_write(opl_reg, opl_data);
+                    }
+                } else {
+                    let sid_num = min(sid_write.reg >> 5, (config.sid_count - 1) as u16);
+                    state.sids[sid_num as usize].write((sid_write.reg & 0x1f) as u32, sid_write.data as u32);
+                }
             }
         } else {
             break;

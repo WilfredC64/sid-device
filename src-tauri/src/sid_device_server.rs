@@ -80,6 +80,7 @@ enum Command {
     SetPsidHeader,
     TryWriteEx,
     TryReadEx,
+    TrySetFmOpl,
     Unknown
 }
 
@@ -107,6 +108,7 @@ impl Command {
             18 => Command::SetPsidHeader,
             19 => Command::TryWriteEx,
             20 => Command::TryReadEx,
+            21 => Command::TrySetFmOpl,
             _ => Command::Unknown,
         }
     }
@@ -300,7 +302,7 @@ impl SidDeviceServerThread {
         if self.player.has_error() {
             println!("ERROR: Audio error occurred.\r");
             stream.shutdown(Shutdown::Both)?;
-            return Err(io::Error::new(ErrorKind::Other, "Audio error."));
+            return Err(io::Error::other("Audio error."));
         }
 
         match command {
@@ -408,6 +410,23 @@ impl SidDeviceServerThread {
                     stream.write_all(&[CommandResponse::Error as u8])?;
                 }
             }
+            Command::TrySetFmOpl => {
+                if data_length == 1 {
+                    let fm_opl_enable_requested = data[4] == 1;
+                    let fm_opl_enabled = self.player.is_fm_opl_enabled();
+                    if fm_opl_enabled == fm_opl_enable_requested {
+                        stream.write_all(&[CommandResponse::Ok as u8])?;
+                    } else if !self.player.has_max_data_in_buffer() {
+                        self.player.set_fm_opl(fm_opl_enable_requested);
+                        stream.write_all(&[CommandResponse::Ok as u8])?;
+                    } else {
+                        stream.write_all(&[CommandResponse::Busy as u8])?;
+                    }
+                } else {
+                    println!("ERROR: TrySetFmOpl missing data for FM OPL.\r");
+                    stream.write_all(&[CommandResponse::Error as u8])?;
+                }
+            }
             Command::TrySetSidModel => {
                 if data_length == 1 {
                     let sid_model = data[4];
@@ -487,7 +506,12 @@ impl SidDeviceServerThread {
 
         for n in (0..write_data_length).step_by(SID_WRITE_SIZE_EX) {
             let cycles = ((data[n] as u16) << 8) + data[n + 1] as u16;
-            let reg = (((data[n + 2] as u16) << 8) + data[n + 3] as u16) & 0x1ff;
+            let mut reg = ((data[n + 2] as u16) << 8) + data[n + 3] as u16;
+            if (0xdf00..=0xdfff).contains(&reg) {
+                reg = 0x200 + (reg & 0xff);
+            } else {
+                reg &= 0x1ff;
+            }
 
             let val = data[n + 4];
             self.player.write_to_sid(reg, val, cycles);

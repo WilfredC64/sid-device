@@ -24,7 +24,8 @@ pub struct Player {
     aborted: Arc<AtomicBool>,
     player_cmd_sender: Sender<(PlayerCommand, Option<i32>)>,
     sid_read_receiver: Receiver<u8>,
-    audio_device: AudioRenderer
+    audio_device: AudioRenderer,
+    fm_opl_enabled: bool,
 }
 
 impl Player {
@@ -54,7 +55,8 @@ impl Player {
             aborted,
             player_cmd_sender,
             sid_read_receiver,
-            audio_device
+            audio_device,
+            fm_opl_enabled: false,
         }
     }
 
@@ -73,6 +75,10 @@ impl Player {
 
     pub fn has_min_data_in_buffer(&self) -> bool {
         self.cycles_in_buffer.load(Ordering::Relaxed) > MIN_CYCLES_TO_DRAIN_QUEUE || self.queue.len() > MIN_WRITES_TO_DRAIN_QUEUE
+    }
+    
+    pub fn is_fm_opl_enabled(&self) -> bool {
+        self.fm_opl_enabled
     }
 
     pub fn start_draining(&self) {
@@ -129,6 +135,15 @@ impl Player {
         self.audio_device.restart(None);
 
         let _ = self.player_cmd_sender.send((PlayerCommand::SetSidCount, Some(count)));
+    }
+
+    pub fn set_fm_opl(&mut self, enabled: bool) {
+        self.fm_opl_enabled = enabled;
+        if enabled {
+            let _ = self.player_cmd_sender.send((PlayerCommand::EnableFmOpl, None));
+        } else {
+            let _ = self.player_cmd_sender.send((PlayerCommand::DisableFmOpl, None));
+        }
     }
 
     pub fn set_position(&self, position: i32) {
