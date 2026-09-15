@@ -25,6 +25,7 @@ hostname = "0.4.2"
 os_info = "3.15.0"
 parking_lot = "0.12.5"
 fastrand = "2.5.0"
+nuked-opl3 = "0.1.0"
 resid-sys = { path = "resid-sys" }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }

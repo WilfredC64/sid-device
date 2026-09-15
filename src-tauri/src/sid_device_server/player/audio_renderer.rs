@@ -13,6 +13,7 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use crossbeam_channel::{Sender, Receiver, bounded};
 use typed_builder::TypedBuilder;
 
+use nuked_opl3::Opl3Chip;
 use resid::{chip_model, sampling_method, Sid};
 use thread_priority::{set_current_thread_priority, ThreadPriority};
 use crate::utils::audio::get_device_display_name;
@@ -46,12 +47,14 @@ const STOP_PAUSE_LATENCY_IN_MILLIS: u64 = 10;
 
 struct EmulationBuffers {
     per_sid: Vec<Vec<i16>>,
+    opl3: Vec<i16>,
 }
 
 impl EmulationBuffers {
     fn new(sid_count: usize) -> Self {
         Self {
             per_sid: (0..sid_count).map(|_| vec![0i16; SAMPLE_BUFFER_SIZE]).collect(),
+            opl3: vec![0i16; SAMPLE_BUFFER_SIZE * 2],
         }
     }
 
@@ -62,6 +65,8 @@ impl EmulationBuffers {
 
 struct EmulationState {
     sids: Vec<Sid>,
+    opl3: Opl3Chip,
+    opl3_address: u8,
     buffers: EmulationBuffers,
 }
 
@@ -69,6 +74,8 @@ impl EmulationState {
     fn new(config: &mut Config) -> Self {
         let mut state = Self {
             sids: vec![],
+            opl3: Opl3Chip::new(DEFAULT_SAMPLE_RATE),
+            opl3_address: 0,
             buffers: EmulationBuffers::new(config.sid_count as usize),
         };
         configure_sids(&mut state, config);
@@ -369,7 +376,7 @@ impl AudioRenderer {
                 device_state.should_pause.store(true, Ordering::Relaxed);
             }
 
-            let cmd = process_player_command(in_cmd_receiver_clone, &mut config, &mut state.sids);
+            let cmd = process_player_command(in_cmd_receiver_clone, &mut config, &mut state);
 
             if let Some((command, param1)) = cmd {
                 if command == PlayerCommand::Read {
@@ -427,7 +434,7 @@ impl AudioRenderer {
 }
 
 #[inline]
-fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>)>, config: &mut Config, sids: &mut [Sid]) -> Option<(PlayerCommand, Option<i32>)> {
+fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>)>, config: &mut Config, state: &mut EmulationState) -> Option<(PlayerCommand, Option<i32>)> {
     let recv_result = in_cmd_receiver.try_recv();
 
     if let Ok((command, param1)) = recv_result {
@@ -489,7 +496,7 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
             PlayerCommand::EnableDigiboost => {
                 config.digiboost = true;
 
-                for (i, sid) in sids.iter_mut().enumerate() {
+                for (i, sid) in state.sids.iter_mut().enumerate() {
                     if config.chip_model[i] == chip_model::MOS8580 {
                         sid.set_voice_mask(VOICE_MASK_DIGIBOOST);
                         sid.input(i16::MIN);
@@ -499,7 +506,7 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
             PlayerCommand::DisableDigiboost => {
                 config.digiboost = false;
 
-                for (i, sid) in sids.iter_mut().enumerate() {
+                for (i, sid) in state.sids.iter_mut().enumerate() {
                     if config.chip_model[i] == chip_model::MOS8580 {
                         sid.set_voice_mask(VOICE_MASK_DEFAULT);
                         sid.input(0);
@@ -508,6 +515,8 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
             }
             PlayerCommand::EnableFmOpl => {
                 config.fm_opl_enabled = true;
+                state.opl3.reset(config.sample_rate);
+                state.opl3_address = 0;
             }
             PlayerCommand::DisableFmOpl => {
                 config.fm_opl_enabled = false;
@@ -517,7 +526,7 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
                     let filter_bias = param1;
                     config.filter_bias_6581 = filter_bias as f64 / 100.0;
 
-                    for (i, sid) in sids.iter_mut().enumerate() {
+                    for (i, sid) in state.sids.iter_mut().enumerate() {
                         if config.chip_model[i] == chip_model::MOS6581 {
                             sid.adjust_filter_bias(config.filter_bias_6581);
                         }
@@ -526,7 +535,7 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
             }
             PlayerCommand::SetSamplingFrequency => {
                 if let Some(param1) = param1 {
-                    for sid in &mut sids.iter_mut() {
+                    for sid in &mut state.sids.iter_mut() {
                         sid.adjust_sampling_frequency(param1 as f64);
                     }
                 }
@@ -544,6 +553,11 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
 fn configure_sids(state: &mut EmulationState, config: &mut Config) {
     state.sids.clear();
     state.buffers.resize(config.sid_count as usize);
+
+    if config.fm_opl_enabled {
+        state.opl3.reset(config.sample_rate);
+        state.opl3_address = 0;
+    }
 
     for i in 0..config.sid_count {
         let mut sid = Sid::new();
@@ -634,10 +648,20 @@ fn generate_sample(
                         total_cycles_left = cycles_left;
                     }
 
+                    if config.fm_opl_enabled {
+                        _ = state.opl3.generate_stream(&mut state.buffers.opl3[..total_sample_length * 2]);
+                    }
+
                     if config.sid_count == 1 {
                         for i in 0..total_sample_length {
                             let sample = state.buffers.per_sid[0][i] as i32;
-                            push_audio(sample, sample);
+                            if config.fm_opl_enabled {
+                                let opl3_left = state.buffers.opl3[i * 2] as i32;
+                                let opl3_right = state.buffers.opl3[i * 2 + 1] as i32;
+                                push_audio(sample + opl3_left, sample + opl3_right);
+                            } else {
+                                push_audio(sample, sample);
+                            }
                         }
                     } else {
                         for i in 0..total_sample_length {
@@ -651,6 +675,11 @@ fn generate_sample(
                                 right += state.buffers.per_sid[j][i] as i32 * panning_right / 100;
                             }
 
+                            if config.fm_opl_enabled {
+                                left += state.buffers.opl3[i * 2] as i32;
+                                right += state.buffers.opl3[i * 2 + 1] as i32;
+                            }
+
                             push_audio(left, right);
                         }
                     }
@@ -660,10 +689,14 @@ fn generate_sample(
 
                 if sid_write.reg >= 0x200 && sid_write.reg < 0x300 {
                     if config.fm_opl_enabled {
-                        // TODO: Implement FM OPL support
-                        // let opl_reg = sid_write.reg - 0x200;
-                        // let opl_data = sid_write.data;
-                        // fm_opl_write(opl_reg, opl_data);
+                        // The FM cartridge protocol ($DF40/$DF50) is an index/data port pair,
+                        // 0x40 latches the register number
+                        // 0x50 writes the data byte to the previously latched register.
+                        match sid_write.reg - 0x200 {
+                            0x40 => state.opl3_address = sid_write.data,
+                            0x50 => state.opl3.write_register(state.opl3_address as u16, sid_write.data),
+                            _ => {}
+                        }
                     }
                 } else {
                     let sid_num = min(sid_write.reg >> 5, (config.sid_count - 1) as u16);
