@@ -45,6 +45,12 @@ const SOUND_BUFFER_SIZE_THRESHOLD: usize = 5_000;
 
 const STOP_PAUSE_LATENCY_IN_MILLIS: u64 = 10;
 
+const FM_TEST_REGISTER: u8 = 0x01;
+const FM_DIGI_ARM_VALUE: u8 = 0x04;
+const FM_DIGI_ADDR_A: u8 = 0xa0;
+const FM_DIGI_ADDR_B: u8 = 0xa1;
+const FM_DIGI_SCALE: i32 = 64;
+
 struct EmulationBuffers {
     per_sid: Vec<Vec<i16>>,
     opl3: Vec<i16>,
@@ -67,6 +73,8 @@ struct EmulationState {
     sids: Vec<Sid>,
     opl3: Opl3Chip,
     opl3_address: u8,
+    opl3_digi_armed: bool,
+    opl3_digi_value: [i16; 2],
     buffers: EmulationBuffers,
 }
 
@@ -76,6 +84,8 @@ impl EmulationState {
             sids: vec![],
             opl3: Opl3Chip::new(DEFAULT_SAMPLE_RATE),
             opl3_address: 0,
+            opl3_digi_armed: false,
+            opl3_digi_value: [0, 0],
             buffers: EmulationBuffers::new(config.sid_count as usize),
         };
         configure_sids(&mut state, config);
@@ -517,6 +527,8 @@ fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>
                 config.fm_opl_enabled = true;
                 state.opl3.reset(config.sample_rate);
                 state.opl3_address = 0;
+                state.opl3_digi_armed = false;
+                state.opl3_digi_value = [0, 0];
             }
             PlayerCommand::DisableFmOpl => {
                 config.fm_opl_enabled = false;
@@ -557,6 +569,8 @@ fn configure_sids(state: &mut EmulationState, config: &mut Config) {
     if config.fm_opl_enabled {
         state.opl3.reset(config.sample_rate);
         state.opl3_address = 0;
+        state.opl3_digi_armed = false;
+        state.opl3_digi_value = [0, 0];
     }
 
     for i in 0..config.sid_count {
@@ -649,7 +663,21 @@ fn generate_sample(
                     }
 
                     if config.fm_opl_enabled {
-                        _ = state.opl3.generate_stream(&mut state.buffers.opl3[..total_sample_length * 2]);
+                        if state.opl3_digi_armed {
+                            // Digi mode is armed: skip Nuked-OPL3 synthesis entirely and hold the
+                            // last-written PCM byte(s) as a flat sample-and-hold value instead,
+                            // matching the reference behavior of discarding the OPL's synthesized
+                            // output while this hack is active.
+                            let digi_sample = (state.opl3_digi_value[0] as i32 + state.opl3_digi_value[1] as i32)
+                                .clamp(i16::MIN as i32, i16::MAX as i32) as i16;
+
+                            for i in 0..total_sample_length {
+                                state.buffers.opl3[i * 2] = digi_sample;
+                                state.buffers.opl3[i * 2 + 1] = digi_sample;
+                            }
+                        } else {
+                            _ = state.opl3.generate_stream(&mut state.buffers.opl3[..total_sample_length * 2]);
+                        }
                     }
 
                     if config.sid_count == 1 {
@@ -694,7 +722,23 @@ fn generate_sample(
                         // 0x50 writes the data byte to the previously latched register.
                         match sid_write.reg - 0x200 {
                             0x40 => state.opl3_address = sid_write.data,
-                            0x50 => state.opl3.write_register(state.opl3_address as u16, sid_write.data),
+                            0x50 => {
+                                let address = state.opl3_address;
+                                let value = sid_write.data;
+
+                                if address == FM_TEST_REGISTER {
+                                    state.opl3_digi_armed = value == FM_DIGI_ARM_VALUE;
+                                }
+
+                                if state.opl3_digi_armed && (address == FM_DIGI_ADDR_A || address == FM_DIGI_ADDR_B) {
+                                    // Raw 8-bit unsigned PCM sample, not F-Number data: center it
+                                    // and hold it for playback instead of forwarding it to Nuked-OPL3.
+                                    let centered = value as i32 - 128;
+                                    state.opl3_digi_value[(address - FM_DIGI_ADDR_A) as usize] = (centered * FM_DIGI_SCALE) as i16;
+                                } else {
+                                    state.opl3.write_register(address as u16, value);
+                                }
+                            }
                             _ => {}
                         }
                     }
