@@ -16,12 +16,15 @@
                     Copyright &#xa9; 2021 - 2026 by Wilfred Bos
                 </p>
                 <p>
-                    Network SID Interface &ndash; Copyright &#xa9; 2007 - 2025
+                    Network SID Interface &ndash; Copyright &#xa9; 2007 - 2026
                     <br/>
                     by Wilfred Bos, Ken H&auml;ndel and Antti S. Lankila
                 </p>
                 <p>
-                    reSID v1.0 &ndash; Copyright &#xa9; 1998 - 2023 by Dag Lem
+                    reSID v1.0 &ndash; Copyright &#xa9; 1999 - 2010 by Dag Lem
+                </p>
+                <p>
+                    Nuked-OPL3 &ndash; Copyright &#xa9; 2013 - 2020 by Nuke.YKT
                 </p>
             </div>
         </div>
@@ -72,6 +75,11 @@ p {
     position: absolute;
     width: 100%;
     bottom: 0;
+    text-shadow:
+        0 0 4px #000000, 0 0 4px #000000, 0 0 4px #000000,
+        0 0 4px #000000, 0 0 4px #000000, 0 0 4px #000000,
+        -1px -1px 0 #000000, 1px -1px 0 #000000,
+        -1px 1px 0 #000000, 1px 1px 0 #000000;
 }
 
 .title-wrapper {

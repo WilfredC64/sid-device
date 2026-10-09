@@ -270,8 +270,8 @@ fn hide_window(app_handle: &AppHandle<Wry>, label_window: &str) {
 fn create_dialogs(app: &mut App<Wry>) -> Result<(), Box<dyn std::error::Error>> {
     WebviewWindowBuilder::new(app, "about", WebviewUrl::App("/pages/about/index.html".into()))
         .title("SID Device - About")
-        .inner_size(600.0, 512.0)
-        .min_inner_size(600.0, 512.0)
+        .inner_size(600.0, 548.0)
+        .min_inner_size(600.0, 548.0)
         .center()
         .decorations(false)
         .maximizable(false)
