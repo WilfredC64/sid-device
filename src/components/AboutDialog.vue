@@ -11,9 +11,8 @@
             <div class="title-wrapper">
                 <svg class="title" viewBox="0 0 600 50" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
                     <defs>
-                        <pattern id="titleColorBars" patternUnits="userSpaceOnUse" width="600" :height="patternHeight">
+                        <pattern id="titleColorBars" ref="patternEl" patternUnits="userSpaceOnUse" width="600" :height="patternHeight">
                             <rect v-for="(bar, index) in colorBars" :key="index" :y="bar.y" width="600" :height="bar.height" :fill="bar.color" />
-                            <animateTransform attributeName="patternTransform" type="translate" from="0 0" :to="`0 -${patternHeight}`" :dur="scrollDuration" repeatCount="indefinite" />
                         </pattern>
                     </defs>
                     <text x="50%" y="38" text-anchor="middle" font-size="36" font-weight="bold"
@@ -117,8 +116,25 @@ export default {
     data() {
         return {
             colorBars,
-            patternHeight,
-            scrollDuration: `${patternHeight / SCROLL_SPEED}s`
+            patternHeight
+        }
+    },
+    mounted() {
+        this.startPatternScroll();
+    },
+    beforeUnmount() {
+        cancelAnimationFrame(this.scrollAnimationFrame);
+    },
+    methods: {
+        startPatternScroll() {
+            const startTime = performance.now();
+            const tick = (now) => {
+                const elapsedSeconds = (now - startTime) / 1000;
+                const offset = (elapsedSeconds * SCROLL_SPEED) % patternHeight;
+                this.$refs.patternEl?.setAttribute('patternTransform', `translate(0, ${-offset})`);
+                this.scrollAnimationFrame = requestAnimationFrame(tick);
+            };
+            this.scrollAnimationFrame = requestAnimationFrame(tick);
         }
     }
 }
