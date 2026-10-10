@@ -362,9 +362,15 @@ fn create_system_tray(app: &AppHandle<Wry>, settings: &Arc<Mutex<Settings>>) {
         .build()
         .unwrap();
 
+    #[cfg(target_os = "macos")]
+    let tray_icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-icon-mono-macos.png")).unwrap();
+    #[cfg(not(target_os = "macos"))]
+    let tray_icon = app.default_window_icon().unwrap().clone();
+
     TrayIconBuilder::with_id("sid_device_tray_icon")
         .tooltip("SID Device")
-        .icon(app.default_window_icon().unwrap().clone())
+        .icon(tray_icon)
+        .icon_as_template(cfg!(target_os = "macos"))
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_tray_icon_event({
