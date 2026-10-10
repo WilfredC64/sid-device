@@ -9,7 +9,16 @@
         <div id="content">
             <img alt="Sid-Device logo" class="logo" draggable="false" ondragstart="return false;" src="../assets/sid_device_256x256.png">
             <div class="title-wrapper">
-                <h1 class="title">SID Device v1.0.2</h1>
+                <svg class="title" viewBox="0 0 600 50" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <pattern id="titleColorBars" patternUnits="userSpaceOnUse" width="600" :height="patternHeight">
+                            <rect v-for="(bar, index) in colorBars" :key="index" :y="bar.y" width="600" :height="bar.height" :fill="bar.color" />
+                            <animateTransform attributeName="patternTransform" type="translate" from="0 0" :to="`0 -${patternHeight}`" :dur="scrollDuration" repeatCount="indefinite" />
+                        </pattern>
+                    </defs>
+                    <text x="50%" y="38" text-anchor="middle" font-size="36" font-weight="bold"
+                        fill="url(#titleColorBars)" stroke="#000000" stroke-width="1" paint-order="stroke">SID Device v1.0.2</text>
+                </svg>
             </div>
             <div class="credits">
                 <p>
@@ -35,10 +44,82 @@
 
 import TitleBar from './TitleBar.vue';
 
+const C64_COLORS = {
+    blue: '#2E2C9B',
+    lightBlue: '#706DEB',
+    cyan: '#75CEC8',
+    white: '#FFFFFF',
+    red: '#813338',
+    pink: '#C46C71',
+    yellow: '#EDF171',
+    darkGrey: '#4A4A4A',
+    midGrey: '#7B7B7B',
+    lightGrey: '#B2B2B2',
+    green: '#56AC4D'
+};
+
+const RASTER_BARS = [
+    [C64_COLORS.blue, C64_COLORS.lightBlue, C64_COLORS.cyan, C64_COLORS.white, C64_COLORS.cyan, C64_COLORS.lightBlue, C64_COLORS.blue],
+    [C64_COLORS.red, C64_COLORS.pink, C64_COLORS.yellow, C64_COLORS.white, C64_COLORS.yellow, C64_COLORS.pink, C64_COLORS.red],
+    [C64_COLORS.darkGrey, C64_COLORS.green, C64_COLORS.cyan, C64_COLORS.white, C64_COLORS.cyan, C64_COLORS.green, C64_COLORS.darkGrey],
+    [C64_COLORS.darkGrey, C64_COLORS.midGrey, C64_COLORS.lightGrey, C64_COLORS.white, C64_COLORS.lightGrey, C64_COLORS.midGrey, C64_COLORS.darkGrey]
+];
+
+const SCROLL_SPEED = 12;
+
+function expandBars(waypoints) {
+    const steps = [];
+    for (let i = 0; i < waypoints.length - 1; i++) {
+        steps.push(waypoints[i], waypoints[i + 1], waypoints[i], waypoints[i + 1]);
+    }
+    return steps;
+}
+
+function buildColorSteps(mountains) {
+    const steps = [];
+    mountains.forEach((mountain, index) => {
+        if (index > 0 && steps[steps.length - 1] !== mountain[0]) {
+            const from = steps[steps.length - 1];
+            const to = mountain[0];
+            steps.push(from, to, from, to);
+        }
+        steps.push(...expandBars(mountain));
+    });
+    const first = steps[0];
+    const last = steps[steps.length - 1];
+    if (last !== first) {
+        steps.push(last, first, last, first);
+    }
+    return steps;
+}
+
+function toBars(steps) {
+    const bars = [];
+    let y = 0;
+    for (let i = 0; i < steps.length;) {
+        let j = i;
+        while (j < steps.length && steps[j] === steps[i]) j++;
+        bars.push({ y, height: j - i, color: steps[i] });
+        y += j - i;
+        i = j;
+    }
+    return bars;
+}
+
+const colorBars = toBars(buildColorSteps(RASTER_BARS));
+const patternHeight = colorBars.reduce((total, bar) => total + bar.height, 0);
+
 export default {
     name: 'AboutDialog',
     components: {
         TitleBar
+    },
+    data() {
+        return {
+            colorBars,
+            patternHeight,
+            scrollDuration: `${patternHeight / SCROLL_SPEED}s`
+        }
     }
 }
 
@@ -88,9 +169,9 @@ p {
 }
 
 .title {
-    font-size: 36px;
+    display: block;
+    height: 50px;
     padding: 4px 0;
-    line-height: 50px;
     color: #3838a0;
     background: linear-gradient(#444450 5%, #dfdff4 20%, #dfdff4 80%, #444450 95%);
     text-shadow: 0 0 2px #000000, 0 0 2px #000000, 0 0 2px #000000, 0 0 2px #000000, 0 0 2px #000000, 0 0 2px #000000;
