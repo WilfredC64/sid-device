@@ -11,7 +11,7 @@
     ],
     "resources": [],
     "externalBin": [],
-    "copyright": "Copyright © 2021 - 2024 Wilfred Bos",
+    "copyright": "Copyright © 2021 - 2026 Wilfred Bos",
     "category": "Music",
     "shortDescription": "",
     "longDescription": "",
@@ -34,7 +34,7 @@
       },
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
-      "timestampUrl": ""
+      "timestampUrl": "http://timestamp.digicert.com"
     }
   },
   "build": {

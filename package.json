@@ -16,7 +16,7 @@
         "build": "vite build",
         "preview": "vite preview",
         "tauri:dev": "tauri dev",
-        "tauri:build": "tauri build && node src-tauri/copy-dist.js"
+        "tauri:build": "node src-tauri/sign-build.js && node src-tauri/copy-dist.js"
     },
     "devDependencies": {
         "@tauri-apps/api": "^2.12.2",
