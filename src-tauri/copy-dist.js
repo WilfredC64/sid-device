@@ -1,7 +1,8 @@
 // copy-dist.js
 // Runs after `tauri build` completes to copy build artifacts to the dist folder:
-// on Windows the sid-device.exe and the NSIS installer
-// on macOS a freshly re-signed .dmg.
+// on Windows the NSIS installer
+// on macOS a freshly re-signed .dmg
+// on Linux the .deb package.
 import { copyFileSync, mkdirSync, mkdtempSync, rmSync, cpSync, readFileSync, readdirSync, unlinkSync, existsSync } from "fs";
 import { execFileSync } from "child_process";
 import { tmpdir } from "os";
@@ -26,7 +27,6 @@ const version = tauriConf.version;
 const productName = tauriConf.productName;
 
 if (process.platform === "win32") {
-    copyToDist("src-tauri/target/release/sid-device.exe", "sid-device.exe");
     copyToDist(`src-tauri/target/release/bundle/nsis/sid-device_${version}_x64-setup.exe`, "NSIS installer");
 } else if (process.platform === "darwin") {
     const appPath = `src-tauri/target/release/bundle/macos/${productName}.app`;
@@ -73,6 +73,16 @@ if (process.platform === "win32") {
         if (mountPoint) rmSync(mountPoint, { recursive: true, force: true });
         if (stagingDir) rmSync(stagingDir, { recursive: true, force: true });
     }
+} else if (process.platform === "linux") {
+    const bundleDebDir = "src-tauri/target/release/bundle/deb";
+    const debName = existsSync(bundleDebDir) ? readdirSync(bundleDebDir).find(f => f.endsWith(".deb")) : undefined;
+
+    if (!debName) {
+        console.error(`No .deb found in ${bundleDebDir}. Make sure "deb" is included in the bundle targets.`);
+        process.exit(1);
+    }
+
+    copyToDist(`${bundleDebDir}/${debName}`, "Debian package");
 }
 
 
