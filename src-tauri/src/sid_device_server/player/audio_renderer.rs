@@ -401,13 +401,13 @@ impl AudioRenderer {
                     let _ = out_sid_read_sender.send(sid_env_out);
                 }
             } else {
-                if !device_state.queue_started.load(Ordering::Relaxed) {
+                if device_state.should_pause.load(Ordering::Relaxed) || !device_state.queue_started.load(Ordering::Relaxed) {
                     thread::sleep(Duration::from_millis(5));
                     continue;
                 }
 
                 try_generate_sample(sound_buffer, queue, &device_state.cycles_in_buffer, &mut config, &mut state);
-                if queue.is_empty() || Self::has_enough_data(sound_buffer, &device_state) {
+                if Self::has_enough_data(sound_buffer, &device_state) {
                     thread::sleep(Duration::from_millis(1));
                 }
             }
