@@ -1,6 +1,6 @@
 [package]
 name = "sid-device"
-version = "1.0.2"
+version = "1.0.3"
 description = "Network SID Device"
 keywords = ["siddevice", "c64", "sid", "sid-6581", "sid-8580"]
 authors = ["Wilfred Bos"]
