@@ -21,18 +21,18 @@
             </div>
             <div class="credits">
                 <p>
-                    Copyright &#xa9; 2021 - 2026 by Wilfred Bos
+                    Copyright &#xa9; 2021 - 2026 Wilfred Bos
                 </p>
                 <p>
                     Network SID Interface &ndash; Copyright &#xa9; 2007 - 2026
                     <br/>
-                    by Wilfred Bos, Ken H&auml;ndel and Antti S. Lankila
+                    Wilfred Bos, Ken H&auml;ndel &amp; Antti S. Lankila
                 </p>
                 <p>
-                    reSID v1.0 &ndash; Copyright &#xa9; 1999 - 2010 by Dag Lem
+                    reSID v1.0 &ndash; Copyright &#xa9; 1999 - 2010 Dag Lem
                 </p>
                 <p>
-                    Nuked-OPL3 &ndash; Copyright &#xa9; 2013 - 2020 by Nuke.YKT
+                    Nuked-OPL3 &ndash; Copyright &#xa9; 2013 - 2020 Nuke.YKT
                 </p>
             </div>
         </div>
