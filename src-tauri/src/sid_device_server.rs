@@ -307,7 +307,7 @@ impl SidDeviceServerThread {
 
         match command {
             Command::TryWrite => {
-                if data_length % SID_WRITE_SIZE != 0 {
+                if !data_length.is_multiple_of(SID_WRITE_SIZE) {
                     println!("ERROR: TryWrite write data size for write data.\r");
                     stream.write_all(&[CommandResponse::Error as u8])?;
                 } else if !self.player.has_max_data_in_buffer() {
@@ -320,7 +320,7 @@ impl SidDeviceServerThread {
                 }
             }
             Command::TryWriteEx => {
-                if data_length % SID_WRITE_SIZE_EX != 0 {
+                if !data_length.is_multiple_of(SID_WRITE_SIZE_EX) {
                     println!("ERROR: TryWriteEx write data size for write data.\r");
                     stream.write_all(&[CommandResponse::Error as u8])?;
                 } else if !self.player.has_max_data_in_buffer() {
@@ -333,7 +333,7 @@ impl SidDeviceServerThread {
                 }
             }
             Command::TryRead => {
-                 if data_length < SID_READ_SIZE || (data_length - SID_READ_SIZE) % SID_WRITE_SIZE != 0 {
+                 if data_length < SID_READ_SIZE || !(data_length - SID_READ_SIZE).is_multiple_of(SID_WRITE_SIZE) {
                     println!("ERROR: TryRead missing read data.\r");
                     stream.write_all(&[CommandResponse::Error as u8])?;
                 } else if !self.player.has_max_data_in_buffer() {
@@ -344,7 +344,7 @@ impl SidDeviceServerThread {
                 }
             }
             Command::TryReadEx => {
-                if data_length < SID_READ_SIZE_EX || (data_length - SID_READ_SIZE_EX) % SID_WRITE_SIZE_EX != 0 {
+                if data_length < SID_READ_SIZE_EX || !(data_length - SID_READ_SIZE_EX).is_multiple_of(SID_WRITE_SIZE_EX) {
                     println!("ERROR: TryRead missing read data.\r");
                     stream.write_all(&[CommandResponse::Error as u8])?;
                 } else if !self.player.has_max_data_in_buffer() {
