@@ -4,7 +4,7 @@
 -->
 
 <template>
-    <div id="about">
+    <div id="about" :class="{ 'animation-paused': !animationActive }">
         <TitleBar />
         <div id="content">
             <img alt="Sid-Device logo" class="logo" draggable="false" ondragstart="return false;" src="../assets/sid_device_256x256.png">
@@ -116,22 +116,46 @@ export default {
     data() {
         return {
             colorBars,
-            patternHeight
+            patternHeight,
+            animationActive: false,
+            scrollAnimationFrame: null,
+            scrollOffset: 0
         }
     },
     mounted() {
-        this.startPatternScroll();
+        document.addEventListener('visibilitychange', this.updateAnimationState);
+        window.addEventListener('focus', this.updateAnimationState);
+        window.addEventListener('blur', this.stopPatternScroll);
+        this.updateAnimationState();
     },
     beforeUnmount() {
-        cancelAnimationFrame(this.scrollAnimationFrame);
+        document.removeEventListener('visibilitychange', this.updateAnimationState);
+        window.removeEventListener('focus', this.updateAnimationState);
+        window.removeEventListener('blur', this.stopPatternScroll);
+        this.stopPatternScroll();
     },
     methods: {
+        updateAnimationState() {
+            if (!document.hidden && document.hasFocus()) {
+                this.startPatternScroll();
+            } else {
+                this.stopPatternScroll();
+            }
+        },
+        stopPatternScroll() {
+            this.animationActive = false;
+            cancelAnimationFrame(this.scrollAnimationFrame);
+            this.scrollAnimationFrame = null;
+        },
         startPatternScroll() {
-            const startTime = performance.now();
+            if (this.animationActive) return;
+            this.animationActive = true;
+            let previousTime = performance.now();
             const tick = (now) => {
-                const elapsedSeconds = (now - startTime) / 1000;
-                const offset = (elapsedSeconds * SCROLL_SPEED) % patternHeight;
-                this.$refs.patternEl?.setAttribute('patternTransform', `translate(0, ${-offset})`);
+                const elapsedSeconds = (now - previousTime) / 1000;
+                previousTime = now;
+                this.scrollOffset = (this.scrollOffset + elapsedSeconds * SCROLL_SPEED) % patternHeight;
+                this.$refs.patternEl?.setAttribute('patternTransform', `translate(0, ${-this.scrollOffset})`);
                 this.scrollAnimationFrame = requestAnimationFrame(tick);
             };
             this.scrollAnimationFrame = requestAnimationFrame(tick);
@@ -195,6 +219,10 @@ p {
     position: absolute;
     width: 100%;
     animation: upDown 1.5s alternate infinite ease-in-out;
+}
+
+.animation-paused .title {
+    animation-play-state: paused;
 }
 
 @keyframes upDown {
