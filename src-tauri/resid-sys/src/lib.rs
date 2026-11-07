@@ -84,6 +84,11 @@ pub struct Sid {
     sid: UniquePtr<ffi::SID>,
 }
 
+// SAFETY: Sid exclusively owns the C++ object, which stays in place when moved.
+// Construction is serialized; shared tables are read-only afterwards.
+// Instances can move between threads, but cannot be accessed concurrently.
+unsafe impl Send for Sid {}
+
 impl Default for Sid {
     fn default() -> Self {
         Self::new()

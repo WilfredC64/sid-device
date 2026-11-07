@@ -2,6 +2,8 @@
 // Licensed under the GNU GPL v3 license. See the LICENSE file for the terms and conditions.
 
 mod audio_renderer;
+mod playback_engine;
+mod sid_emulation;
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};

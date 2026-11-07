@@ -2,7 +2,6 @@
 // Licensed under the GNU GPL v3 license. See the LICENSE file for the terms and conditions.
 
 use parking_lot::Mutex;
-use std::cmp::min;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::{thread, time::{Duration, Instant}};
@@ -13,85 +12,24 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use crossbeam_channel::{Sender, Receiver, bounded};
 use typed_builder::TypedBuilder;
 
-use nuked_opl3::Opl3Chip;
-use resid::{chip_model, sampling_method, Sid};
+use resid::{chip_model, sampling_method};
 use thread_priority::{set_current_thread_priority, ThreadPriority};
 use crate::utils::audio::get_device_display_name;
+use super::playback_engine::{EmulationState, PAL_CLOCK, generate_sample, process_player_command, try_generate_sample};
 
 pub static AUDIO_ERROR: AtomicBool = AtomicBool::new(false);
 
-const VOICE_MASK_DEFAULT: u32 = 0x07;
-const VOICE_MASK_DIGIBOOST: u32 = 0x0f;
-
 const AUDIO_BUFFER_SIZE: usize = 65_536;
-const SAMPLE_BUFFER_SIZE: usize = 8_192;
-
-const AUDIO_STREAM_LIMIT: usize = 10_000;
-const AUDIO_STREAM_MAX_LIMIT: usize = 55_000;
-
-const PAL_CLOCK: u32 = 985_248;
-const NTSC_CLOCK: u32 = 1_022_727;
+const SIDS_PER_TASK: usize = 4;
 
 const DEFAULT_FILTER_BIAS_6581: f64 = 0.24;
-
-const PAUSE_AUDIO_IDLE_TIME_IN_SEC: u64 = 2;
-
-const CYCLES_PER_SAMPLE: u32 = 5_000;
-
 const DEFAULT_SAMPLE_RATE: u32 = 48_000;
 
 const CYCLES_IN_BUFFER_THRESHOLD: u32 = 10_000;
 const SOUND_BUFFER_SIZE_THRESHOLD: usize = 5_000;
 
+const PAUSE_AUDIO_IDLE_TIME_IN_SEC: u64 = 2;
 const STOP_PAUSE_LATENCY_IN_MILLIS: u64 = 10;
-
-const FM_TEST_REGISTER: u8 = 0x01;
-const FM_DIGI_ARM_VALUE: u8 = 0x04;
-const FM_DIGI_ADDR_A: u8 = 0xa0;
-const FM_DIGI_ADDR_B: u8 = 0xa1;
-const FM_DIGI_SCALE: i32 = 64;
-
-struct EmulationBuffers {
-    per_sid: Vec<Vec<i16>>,
-    opl3: Vec<i16>,
-}
-
-impl EmulationBuffers {
-    fn new(sid_count: usize) -> Self {
-        Self {
-            per_sid: (0..sid_count).map(|_| vec![0i16; SAMPLE_BUFFER_SIZE]).collect(),
-            opl3: vec![0i16; SAMPLE_BUFFER_SIZE * 2],
-        }
-    }
-
-    fn resize(&mut self, sid_count: usize) {
-        self.per_sid.resize_with(sid_count, || vec![0i16; SAMPLE_BUFFER_SIZE]);
-    }
-}
-
-struct EmulationState {
-    sids: Vec<Sid>,
-    opl3: Opl3Chip,
-    opl3_address: u8,
-    opl3_digi_armed: bool,
-    opl3_digi_value: [i16; 2],
-    buffers: EmulationBuffers,
-}
-
-impl EmulationState {
-    fn new(config: &mut Config) -> Self {
-        let mut state = Self {
-            sids: vec![],
-            opl3: Opl3Chip::new(DEFAULT_SAMPLE_RATE),
-            opl3_address: 0,
-            opl3_digi_armed: false,
-            opl3_digi_value: [0, 0],
-            buffers: EmulationBuffers::new(config.sid_count as usize),
-        };
-        configure_sids(&mut state, config);
-        state
-    }
-}
 
 #[derive(Copy, Clone)]
 pub struct SidWrite {
@@ -137,6 +75,9 @@ pub struct Config {
     pub digiboost: bool,
     pub filter_bias_6581: f64,
     pub fm_opl_enabled: bool,
+
+    #[builder(default=SIDS_PER_TASK)]
+    pub sids_per_task: usize,
 
     #[builder(default=false)]
     pub config_changed: bool
@@ -394,10 +335,7 @@ impl AudioRenderer {
                         generate_sample(sound_buffer, queue, &device_state.cycles_in_buffer, &mut config, &mut state);
                     }
 
-                    let reg = param1.unwrap_or(0);
-                    let sid_num = min(reg >> 5, config.sid_count - 1) as usize;
-
-                    let sid_env_out = state.sids[sid_num].read(reg as u32 & 0x1f) as u8;
+                    let sid_env_out = state.read(&mut config, param1.unwrap_or(0));
                     let _ = out_sid_read_sender.send(sid_env_out);
                 }
             } else {
@@ -441,330 +379,6 @@ impl AudioRenderer {
     pub fn get_sid_read_receiver(&self) -> Receiver<u8> {
         self.out_sid_read_receiver.clone()
     }
-}
-
-#[inline]
-fn process_player_command(in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>)>, config: &mut Config, state: &mut EmulationState) -> Option<(PlayerCommand, Option<i32>)> {
-    let recv_result = in_cmd_receiver.try_recv();
-
-    if let Ok((command, param1)) = recv_result {
-        match command {
-            PlayerCommand::SetModel => {
-                if let Some(param1) = param1 {
-                    let model = param1 & 0xff;
-                    let sid_number = param1 >> 8;
-                    if sid_number >= 0 && sid_number < config.sid_count {
-                        config.chip_model[sid_number as usize] = if model == 0 {
-                            chip_model::MOS6581
-                        } else {
-                            chip_model::MOS8580
-                        };
-                    }
-
-                    config.config_changed = true;
-                }
-            }
-            PlayerCommand::SetClock => {
-                let clock = param1.unwrap();
-                config.clock = if clock == 0 {
-                    PAL_CLOCK
-                } else {
-                    NTSC_CLOCK
-                };
-
-                config.config_changed = true;
-            }
-            PlayerCommand::SetSidCount => {
-                let count = param1.unwrap() as usize;
-                config.sid_count = count as i32;
-                config.chip_model = vec![config.chip_model[0].clone(); count];
-                config.position_left = vec![0; count];
-                config.position_right = vec![0; count];
-
-                config.config_changed = true;
-            }
-            PlayerCommand::SetPosition => {
-                if let Some(param1) = param1 {
-                    let position = ((param1 & 0xff) as i8) as i32;
-                    let sid_number = param1 >> 8;
-                    if sid_number >= 0 && sid_number < config.sid_count {
-                        config.position_left[sid_number as usize] = if position >= 0 { 100 } else { 100 + position };
-                        config.position_right[sid_number as usize] = if position <= 0 { 100 } else { 100 - position };
-                    }
-                }
-            }
-            PlayerCommand::SetSamplingMethod => {
-                let sampling_method = param1.unwrap();
-                config.sampling_method = if sampling_method == 1 {
-                    sampling_method::SAMPLE_RESAMPLE
-                } else {
-                    sampling_method::SAMPLE_INTERPOLATE
-                };
-
-                config.config_changed = true;
-            }
-            PlayerCommand::EnableDigiboost => {
-                config.digiboost = true;
-
-                for (i, sid) in state.sids.iter_mut().enumerate() {
-                    if config.chip_model[i] == chip_model::MOS8580 {
-                        sid.set_voice_mask(VOICE_MASK_DIGIBOOST);
-                        sid.input(i16::MIN);
-                    }
-                }
-            }
-            PlayerCommand::DisableDigiboost => {
-                config.digiboost = false;
-
-                for (i, sid) in state.sids.iter_mut().enumerate() {
-                    if config.chip_model[i] == chip_model::MOS8580 {
-                        sid.set_voice_mask(VOICE_MASK_DEFAULT);
-                        sid.input(0);
-                    }
-                }
-            }
-            PlayerCommand::EnableFmOpl => {
-                config.fm_opl_enabled = true;
-                state.opl3.reset(config.sample_rate);
-                state.opl3_address = 0;
-                state.opl3_digi_armed = false;
-                state.opl3_digi_value = [0, 0];
-            }
-            PlayerCommand::DisableFmOpl => {
-                config.fm_opl_enabled = false;
-            }
-            PlayerCommand::SetFilterBias6581 => {
-                if let Some(param1) = param1 {
-                    let filter_bias = param1;
-                    config.filter_bias_6581 = filter_bias as f64 / 100.0;
-
-                    for (i, sid) in state.sids.iter_mut().enumerate() {
-                        if config.chip_model[i] == chip_model::MOS6581 {
-                            sid.adjust_filter_bias(config.filter_bias_6581);
-                        }
-                    }
-                }
-            }
-            PlayerCommand::SetSamplingFrequency => {
-                if let Some(param1) = param1 {
-                    for sid in &mut state.sids.iter_mut() {
-                        sid.adjust_sampling_frequency(param1 as f64);
-                    }
-                }
-            }
-            PlayerCommand::Reset => {
-                config.config_changed = true;
-            }
-            _ => {}
-        }
-        return Some((command, param1));
-    }
-    None
-}
-
-fn configure_sids(state: &mut EmulationState, config: &mut Config) {
-    state.sids.clear();
-    state.buffers.resize(config.sid_count as usize);
-
-    if config.fm_opl_enabled {
-        state.opl3.reset(config.sample_rate);
-        state.opl3_address = 0;
-        state.opl3_digi_armed = false;
-        state.opl3_digi_value = [0, 0];
-    }
-
-    for i in 0..config.sid_count {
-        let mut sid = Sid::new();
-
-        sid.set_chip_model(config.chip_model[i as usize].clone());
-
-        let _ = sid.set_sampling_parameters(config.clock as f64, config.sampling_method.clone(), config.sample_rate as f64);
-
-        sid.enable_filter(true);
-
-        let mut voice_mask = 0x07u32;
-        let mut input_sample = 0;
-
-        if config.chip_model[i as usize] == chip_model::MOS8580 {
-            if config.digiboost {
-                voice_mask |= 0x08;
-                input_sample = i16::MIN;
-            }
-        } else {
-            sid.adjust_filter_bias(config.filter_bias_6581);
-        }
-
-        sid.set_voice_mask(voice_mask);
-        sid.input(input_sample);
-
-        sid.clock_delta(0xffff);
-
-        state.sids.push(sid);
-    }
-
-    config.config_changed = false;
-}
-
-fn try_generate_sample(
-    audio_output_stream: &Arc<AtomicRingBuffer<i16>>,
-    sid_write_queue: &Arc<AtomicRingBuffer<SidWrite>>,
-    cycles_in_buffer: &Arc<AtomicU32>,
-    config: &mut Config,
-    state: &mut EmulationState
-) {
-    if !sid_write_queue.is_empty() && audio_output_stream.len() < AUDIO_STREAM_LIMIT {
-        generate_sample(audio_output_stream, sid_write_queue, cycles_in_buffer, config, state);
-    }
-}
-
-fn generate_sample(
-    audio_output_stream: &Arc<AtomicRingBuffer<i16>>,
-    sid_write_queue: &Arc<AtomicRingBuffer<SidWrite>>,
-    cycles_in_buffer: &Arc<AtomicU32>,
-    config: &mut Config,
-    state: &mut EmulationState
-) {
-    if audio_output_stream.len() > AUDIO_STREAM_MAX_LIMIT {
-        return;
-    }
-
-    if config.config_changed {
-        configure_sids(state, config);
-    }
-
-    let mut total_cycles = 0;
-
-    let push_audio = |left, right| {
-        let rand = fastrand::u64(..);
-        let dithering = (rand & 1) as i32 - ((rand >> 1) & 1) as i32;
-        let _ = audio_output_stream.try_push(add_dithering_and_limit_output(left, dithering));
-        let _ = audio_output_stream.try_push(add_dithering_and_limit_output(right, dithering));
-    };
-
-    while total_cycles < CYCLES_PER_SAMPLE {
-        let sid_write = sid_write_queue.try_pop();
-        if let Some(sid_write) = sid_write {
-
-            let cycles = sid_write.cycles as u32;
-            total_cycles += cycles;
-
-            if cycles > 0 {
-                let mut cycles = cycles;
-
-                while cycles > 0 {
-                    let mut total_sample_length = 0;
-                    let mut total_cycles_left = 0;
-
-                    for sid_num in 0..config.sid_count as usize {
-                        let (sample_length, cycles_left) = state.sids[sid_num].sample(cycles, &mut state.buffers.per_sid[sid_num], 1);
-
-                        total_sample_length = sample_length;
-                        total_cycles_left = cycles_left;
-                    }
-
-                    if config.fm_opl_enabled {
-                        if state.opl3_digi_armed {
-                            // Digi mode is armed: skip Nuked-OPL3 synthesis entirely and hold the
-                            // last-written PCM byte(s) as a flat sample-and-hold value instead,
-                            // matching the reference behavior of discarding the OPL's synthesized
-                            // output while this hack is active.
-                            let digi_sample = (state.opl3_digi_value[0] as i32 + state.opl3_digi_value[1] as i32)
-                                .clamp(i16::MIN as i32, i16::MAX as i32) as i16;
-
-                            for i in 0..total_sample_length {
-                                state.buffers.opl3[i * 2] = digi_sample;
-                                state.buffers.opl3[i * 2 + 1] = digi_sample;
-                            }
-                        } else {
-                            _ = state.opl3.generate_stream(&mut state.buffers.opl3[..total_sample_length * 2]);
-                        }
-                    }
-
-                    if config.sid_count == 1 {
-                        for i in 0..total_sample_length {
-                            let sample = state.buffers.per_sid[0][i] as i32;
-                            if config.fm_opl_enabled {
-                                let opl3_left = state.buffers.opl3[i * 2] as i32;
-                                let opl3_right = state.buffers.opl3[i * 2 + 1] as i32;
-                                push_audio(sample + opl3_left, sample + opl3_right);
-                            } else {
-                                push_audio(sample, sample);
-                            }
-                        }
-                    } else {
-                        for i in 0..total_sample_length {
-                            let mut left = 0;
-                            let mut right = 0;
-
-                            for j in 0..config.sid_count as usize {
-                                let panning_left = config.position_left[j];
-                                let panning_right = config.position_right[j];
-                                left += state.buffers.per_sid[j][i] as i32 * panning_left / 100;
-                                right += state.buffers.per_sid[j][i] as i32 * panning_right / 100;
-                            }
-
-                            if config.fm_opl_enabled {
-                                left += state.buffers.opl3[i * 2] as i32;
-                                right += state.buffers.opl3[i * 2 + 1] as i32;
-                            }
-
-                            push_audio(left, right);
-                        }
-                    }
-
-                    cycles = total_cycles_left;
-                }
-
-                if sid_write.reg >= 0x200 && sid_write.reg < 0x300 {
-                    if config.fm_opl_enabled {
-                        // The FM cartridge protocol ($DF40/$DF50) is an index/data port pair,
-                        // 0x40 latches the register number
-                        // 0x50 writes the data byte to the previously latched register.
-                        match sid_write.reg - 0x200 {
-                            0x40 => state.opl3_address = sid_write.data,
-                            0x50 => {
-                                let address = state.opl3_address;
-                                let value = sid_write.data;
-
-                                if address == FM_TEST_REGISTER {
-                                    state.opl3_digi_armed = value == FM_DIGI_ARM_VALUE;
-                                }
-
-                                if state.opl3_digi_armed && (address == FM_DIGI_ADDR_A || address == FM_DIGI_ADDR_B) {
-                                    // Raw 8-bit unsigned PCM sample, not F-Number data: center it
-                                    // and hold it for playback instead of forwarding it to Nuked-OPL3.
-                                    let centered = value as i32 - 128;
-                                    state.opl3_digi_value[(address - FM_DIGI_ADDR_A) as usize] = (centered * FM_DIGI_SCALE) as i16;
-                                } else {
-                                    state.opl3.write_register(address as u16, value);
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                } else {
-                    let sid_num = min(sid_write.reg >> 5, (config.sid_count - 1) as u16);
-                    state.sids[sid_num as usize].write((sid_write.reg & 0x1f) as u32, sid_write.data as u32);
-                }
-            }
-        } else {
-            break;
-        }
-    }
-
-    if total_cycles > 0 {
-        let cycles = cycles_in_buffer.load(Ordering::Relaxed);
-        if cycles > total_cycles {
-            cycles_in_buffer.fetch_sub(total_cycles, Ordering::Relaxed);
-        } else {
-            cycles_in_buffer.store(0, Ordering::Relaxed);
-        }
-    }
-}
-
-#[inline]
-fn add_dithering_and_limit_output(sample: i32, dithering: i32) -> i16 {
-    sample.saturating_add(dithering).clamp(i16::MIN as i32, i16::MAX as i32) as i16
 }
 
 fn run<T>(device: &Device, config: StreamConfig, sound_buffer: Arc<AtomicRingBuffer<i16>>, should_stop: Arc<AtomicBool>, should_pause: Arc<AtomicBool>) -> Result<(), anyhow::Error>

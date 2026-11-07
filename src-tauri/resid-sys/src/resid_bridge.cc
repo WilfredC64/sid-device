@@ -2,10 +2,17 @@
 // Licensed under the GNU GPL v3 license. See the LICENSE file for the terms and conditions.
 
 #include "resid_bridge.h"
+#include <mutex>
 
 namespace resid_bridge {
 
 std::unique_ptr<reSID::SID> new_sid() {
+    // WaveformGenerator, EnvelopeGenerator and Filter lazily populate shared
+    // lookup tables behind unsynchronized class_init flags. All bridge-created
+    // SIDs must finish construction under this lock; afterwards the tables are
+    // read-only, including during construction of subsequent instances.
+    static std::mutex construction_mutex;
+    const std::lock_guard<std::mutex> lock(construction_mutex);
     return std::make_unique<reSID::SID>();
 }
 
