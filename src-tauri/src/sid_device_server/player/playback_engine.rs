@@ -22,6 +22,9 @@ const AUDIO_STREAM_MAX_LIMIT: usize = 55_000;
 const CYCLES_PER_BATCH: u32 = 5_000;
 const MAX_EVENTS_PER_BATCH: usize = 1_024;
 
+const PARALLEL_CYCLES_PER_BATCH: u32 = 20_000;
+const PARALLEL_MAX_EVENTS_PER_BATCH: usize = 4_096;
+
 const FM_TEST_REGISTER: u8 = 0x01;
 const FM_DIGI_ARM_VALUE: u8 = 0x04;
 const FM_DIGI_ADDR_A: u8 = 0xa0;
@@ -36,6 +39,8 @@ pub(super) struct EmulationState {
     opl3_digi_value: [i16; 2],
     events: Vec<SidWrite>,
     opl3_buffer: Vec<i16>,
+    mix_left: Vec<i32>,
+    mix_right: Vec<i32>,
 }
 
 impl EmulationState {
@@ -49,6 +54,8 @@ impl EmulationState {
             opl3_digi_value: [0, 0],
             events: Vec::with_capacity(MAX_EVENTS_PER_BATCH),
             opl3_buffer: Vec::new(),
+            mix_left: Vec::new(),
+            mix_right: Vec::new(),
         }
     }
 
@@ -182,14 +189,19 @@ pub(super) fn generate_sample(
         state.configure(config);
     }
 
-    let total_cycles = collect_batch(queue, &mut state.events);
-    let rendered = state.sids.render(&state.events);
-    let sample_count = rendered.samples[0].len();
+    let (max_cycles, max_events) = if state.sids.is_parallel() {
+        (PARALLEL_CYCLES_PER_BATCH, PARALLEL_MAX_EVENTS_PER_BATCH)
+    } else {
+        (CYCLES_PER_BATCH, MAX_EVENTS_PER_BATCH)
+    };
+    let total_cycles = collect_batch(queue, &mut state.events, max_cycles, max_events);
+    state.sids.render(&state.events, total_cycles);
+    let sample_count = state.sids.sample_count();
 
     if config.fm_opl_enabled {
         state.opl3_buffer.resize(sample_count * 2, 0);
         let mut offset = 0;
-        for (event, &length) in state.events.iter().zip(&rendered.event_sample_lengths) {
+        for (event, &length) in state.events.iter().zip(state.sids.event_sample_lengths()) {
             let end = offset + length * 2;
             if length != 0 {
                 let buffer = &mut state.opl3_buffer[offset..end];
@@ -215,19 +227,31 @@ pub(super) fn generate_sample(
         }
     }
 
-    for i in 0..sample_count {
-        let (mut left, mut right) = if config.sid_count == 1 {
-            let sample = rendered.samples[0][i] as i32;
-            (sample, sample)
-        } else {
-            let mut left = 0;
-            let mut right = 0;
-            for (j, samples) in rendered.samples.iter().enumerate() {
-                left += samples[i] as i32 * config.position_left[j] / 100;
-                right += samples[i] as i32 * config.position_right[j] / 100;
+    state.mix_left.clear();
+    state.mix_left.resize(sample_count, 0);
+    state.mix_right.clear();
+    state.mix_right.resize(sample_count, 0);
+
+    if config.sid_count == 1 {
+        let samples = state.sids.samples(0);
+        for ((left, right), &sample) in state.mix_left.iter_mut().zip(state.mix_right.iter_mut()).zip(samples) {
+            *left = sample as i32;
+            *right = sample as i32;
+        }
+    } else {
+        // Mix chip by chip so every pass walks two contiguous buffers.
+        for j in 0..config.sid_count as usize {
+            let (position_left, position_right) = (config.position_left[j], config.position_right[j]);
+            let samples = state.sids.samples(j);
+            for ((left, right), &sample) in state.mix_left.iter_mut().zip(state.mix_right.iter_mut()).zip(samples) {
+                *left += sample as i32 * position_left / 100;
+                *right += sample as i32 * position_right / 100;
             }
-            (left, right)
-        };
+        }
+    }
+
+    for i in 0..sample_count {
+        let (mut left, mut right) = (state.mix_left[i], state.mix_right[i]);
         if config.fm_opl_enabled {
             left += state.opl3_buffer[i * 2] as i32;
             right += state.opl3_buffer[i * 2 + 1] as i32;
@@ -248,10 +272,10 @@ pub(super) fn generate_sample(
     }
 }
 
-fn collect_batch(queue: &AtomicRingBuffer<SidWrite>, events: &mut Vec<SidWrite>) -> u32 {
+fn collect_batch(queue: &AtomicRingBuffer<SidWrite>, events: &mut Vec<SidWrite>, max_cycles: u32, max_events: usize) -> u32 {
     events.clear();
     let mut total_cycles = 0;
-    while total_cycles < CYCLES_PER_BATCH && events.len() < MAX_EVENTS_PER_BATCH {
+    while total_cycles < max_cycles && events.len() < max_events {
         let Some(event) = queue.try_pop() else { break };
         total_cycles += u32::from(event.cycles);
         events.push(event);
