@@ -25,20 +25,86 @@ const MAX_EVENTS_PER_BATCH: usize = 1_024;
 const PARALLEL_CYCLES_PER_BATCH: u32 = 20_000;
 const PARALLEL_MAX_EVENTS_PER_BATCH: usize = 4_096;
 
+const FM_INDEX_PORT: u16 = 0x240;
+const FM_DATA_PORT: u16 = 0x250;
 const FM_TEST_REGISTER: u8 = 0x01;
 const FM_DIGI_ARM_VALUE: u8 = 0x04;
 const FM_DIGI_ADDR_A: u8 = 0xa0;
 const FM_DIGI_ADDR_B: u8 = 0xa1;
 const FM_DIGI_SCALE: i32 = 64;
 
+struct FmOpl {
+    chip: Opl3Chip,
+    address: u8,
+    digi_armed: bool,
+    digi_value: [i16; 2],
+    buffer: Vec<i16>,
+}
+
+impl FmOpl {
+    fn new(sample_rate: u32) -> Self {
+        Self {
+            chip: Opl3Chip::new(sample_rate),
+            address: 0,
+            digi_armed: false,
+            digi_value: [0, 0],
+            buffer: Vec::new(),
+        }
+    }
+
+    fn reset(&mut self, sample_rate: u32) {
+        self.chip.reset(sample_rate);
+        self.address = 0;
+        self.digi_armed = false;
+        self.digi_value = [0, 0];
+    }
+
+    fn render(&mut self, events: &[SidWrite], event_sample_lengths: &[usize], sample_count: usize) {
+        self.buffer.resize(sample_count * 2, 0);
+        let mut offset = 0;
+        for (event, &length) in events.iter().zip(event_sample_lengths) {
+            let end = offset + length * 2;
+            if length != 0 {
+                let buffer = &mut self.buffer[offset..end];
+                if self.digi_armed {
+                    let sample = (self.digi_value[0] as i32 + self.digi_value[1] as i32)
+                        .clamp(i16::MIN as i32, i16::MAX as i32) as i16;
+                    buffer.fill(sample);
+                } else {
+                    let _ = self.chip.generate_stream(buffer);
+                }
+            }
+            offset = end;
+
+            if event.cycles != 0 {
+                self.write(event.reg, event.data);
+            }
+        }
+    }
+
+    fn write(&mut self, reg: u16, data: u8) {
+        match reg {
+            FM_INDEX_PORT => self.address = data,
+            FM_DATA_PORT => {
+                if self.address == FM_TEST_REGISTER {
+                    self.digi_armed = data == FM_DIGI_ARM_VALUE;
+                }
+                if self.digi_armed && (self.address == FM_DIGI_ADDR_A || self.address == FM_DIGI_ADDR_B) {
+                    // Digi mode holds raw unsigned PCM instead of synthesizing OPL audio.
+                    self.digi_value[(self.address - FM_DIGI_ADDR_A) as usize] = ((data as i32 - 128) * FM_DIGI_SCALE) as i16;
+                } else {
+                    self.chip.write_register(self.address as u16, data);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
 pub(super) struct EmulationState {
     sids: SidEmulation,
-    opl3: Opl3Chip,
-    opl3_address: u8,
-    opl3_digi_armed: bool,
-    opl3_digi_value: [i16; 2],
+    opl: FmOpl,
     events: Vec<SidWrite>,
-    opl3_buffer: Vec<i16>,
     mix_left: Vec<i32>,
     mix_right: Vec<i32>,
 }
@@ -48,12 +114,8 @@ impl EmulationState {
         config.config_changed = false;
         Self {
             sids: SidEmulation::new(config),
-            opl3: Opl3Chip::new(config.sample_rate),
-            opl3_address: 0,
-            opl3_digi_armed: false,
-            opl3_digi_value: [0, 0],
+            opl: FmOpl::new(config.sample_rate),
             events: Vec::with_capacity(MAX_EVENTS_PER_BATCH),
-            opl3_buffer: Vec::new(),
             mix_left: Vec::new(),
             mix_right: Vec::new(),
         }
@@ -62,16 +124,9 @@ impl EmulationState {
     fn configure(&mut self, config: &mut Config) {
         self.sids.configure(config);
         if config.fm_opl_enabled {
-            self.reset_opl(config.sample_rate);
+            self.opl.reset(config.sample_rate);
         }
         config.config_changed = false;
-    }
-
-    fn reset_opl(&mut self, sample_rate: u32) {
-        self.opl3.reset(sample_rate);
-        self.opl3_address = 0;
-        self.opl3_digi_armed = false;
-        self.opl3_digi_value = [0, 0];
     }
 
     pub(super) fn read(&mut self, config: &mut Config, reg: i32) -> u8 {
@@ -80,6 +135,38 @@ impl EmulationState {
         }
         let sid_num = min(reg >> 5, config.sid_count - 1) as usize;
         self.sids.read(sid_num, reg as u32 & 0x1f)
+    }
+
+    fn mix(&mut self, config: &Config) {
+        let sample_count = self.sids.sample_count();
+
+        self.mix_left.clear();
+        self.mix_left.resize(sample_count, 0);
+        self.mix_right.clear();
+        self.mix_right.resize(sample_count, 0);
+
+        let sid_count = config.sid_count as usize;
+        for index in 0..sid_count {
+            let (position_left, position_right) = if sid_count == 1 {
+                (100, 100)
+            } else {
+                (config.position_left[index], config.position_right[index])
+            };
+            let samples = self.sids.samples(index);
+            for ((left, right), &sample) in self.mix_left.iter_mut().zip(self.mix_right.iter_mut()).zip(samples) {
+                *left += sample as i32 * position_left / 100;
+                *right += sample as i32 * position_right / 100;
+            }
+        }
+
+        if config.fm_opl_enabled {
+            self.opl.render(&self.events, self.sids.event_sample_lengths(), sample_count);
+            let (frames, _) = self.opl.buffer.as_chunks::<2>();
+            for ((left, right), frame) in self.mix_left.iter_mut().zip(self.mix_right.iter_mut()).zip(frames) {
+                *left += frame[0] as i32;
+                *right += frame[1] as i32;
+            }
+        }
     }
 }
 
@@ -143,7 +230,7 @@ pub(super) fn process_player_command(
         }
         PlayerCommand::EnableFmOpl => {
             config.fm_opl_enabled = true;
-            state.reset_opl(config.sample_rate);
+            state.opl.reset(config.sample_rate);
         }
         PlayerCommand::DisableFmOpl => config.fm_opl_enabled = false,
         PlayerCommand::SetFilterBias6581 => {
@@ -195,72 +282,10 @@ pub(super) fn generate_sample(
         (CYCLES_PER_BATCH, MAX_EVENTS_PER_BATCH)
     };
     let total_cycles = collect_batch(queue, &mut state.events, max_cycles, max_events);
+
     state.sids.render(&state.events, total_cycles);
-    let sample_count = state.sids.sample_count();
-
-    if config.fm_opl_enabled {
-        state.opl3_buffer.resize(sample_count * 2, 0);
-        let mut offset = 0;
-        for (event, &length) in state.events.iter().zip(state.sids.event_sample_lengths()) {
-            let end = offset + length * 2;
-            if length != 0 {
-                let buffer = &mut state.opl3_buffer[offset..end];
-                if state.opl3_digi_armed {
-                    let sample = (state.opl3_digi_value[0] as i32 + state.opl3_digi_value[1] as i32)
-                        .clamp(i16::MIN as i32, i16::MAX as i32) as i16;
-                    buffer.fill(sample);
-                } else {
-                    let _ = state.opl3.generate_stream(buffer);
-                }
-            }
-            offset = end;
-            // Writes happen after their cycle interval, even if it generated no samples.
-            if event.cycles != 0 && (0x200..0x300).contains(&event.reg) {
-                apply_opl_write(
-                    &mut state.opl3,
-                    &mut state.opl3_address,
-                    &mut state.opl3_digi_armed,
-                    &mut state.opl3_digi_value,
-                    event,
-                );
-            }
-        }
-    }
-
-    state.mix_left.clear();
-    state.mix_left.resize(sample_count, 0);
-    state.mix_right.clear();
-    state.mix_right.resize(sample_count, 0);
-
-    if config.sid_count == 1 {
-        let samples = state.sids.samples(0);
-        for ((left, right), &sample) in state.mix_left.iter_mut().zip(state.mix_right.iter_mut()).zip(samples) {
-            *left = sample as i32;
-            *right = sample as i32;
-        }
-    } else {
-        // Mix chip by chip so every pass walks two contiguous buffers.
-        for j in 0..config.sid_count as usize {
-            let (position_left, position_right) = (config.position_left[j], config.position_right[j]);
-            let samples = state.sids.samples(j);
-            for ((left, right), &sample) in state.mix_left.iter_mut().zip(state.mix_right.iter_mut()).zip(samples) {
-                *left += sample as i32 * position_left / 100;
-                *right += sample as i32 * position_right / 100;
-            }
-        }
-    }
-
-    for i in 0..sample_count {
-        let (mut left, mut right) = (state.mix_left[i], state.mix_right[i]);
-        if config.fm_opl_enabled {
-            left += state.opl3_buffer[i * 2] as i32;
-            right += state.opl3_buffer[i * 2 + 1] as i32;
-        }
-        let rand = fastrand::u64(..);
-        let dithering = (rand & 1) as i32 - ((rand >> 1) & 1) as i32;
-        let _ = output.try_push(limit_output(left, dithering));
-        let _ = output.try_push(limit_output(right, dithering));
-    }
+    state.mix(config);
+    push_output(output, &state.mix_left, &state.mix_right);
 
     if total_cycles > 0 {
         let cycles = cycles_in_buffer.load(Ordering::Relaxed);
@@ -283,28 +308,12 @@ fn collect_batch(queue: &AtomicRingBuffer<SidWrite>, events: &mut Vec<SidWrite>,
     total_cycles
 }
 
-fn apply_opl_write(
-    opl3: &mut Opl3Chip,
-    address: &mut u8,
-    digi_armed: &mut bool,
-    digi_value: &mut [i16; 2],
-    event: &SidWrite,
-) {
-    // The FM cartridge uses an index/data port pair ($DF40/$DF50).
-    match event.reg - 0x200 {
-        0x40 => *address = event.data,
-        0x50 => {
-            if *address == FM_TEST_REGISTER {
-                *digi_armed = event.data == FM_DIGI_ARM_VALUE;
-            }
-            if *digi_armed && (*address == FM_DIGI_ADDR_A || *address == FM_DIGI_ADDR_B) {
-                // Digi mode holds raw unsigned PCM instead of synthesizing OPL audio.
-                digi_value[(*address - FM_DIGI_ADDR_A) as usize] = ((event.data as i32 - 128) * FM_DIGI_SCALE) as i16;
-            } else {
-                opl3.write_register(*address as u16, event.data);
-            }
-        }
-        _ => {}
+fn push_output(output: &AtomicRingBuffer<i16>, left: &[i32], right: &[i32]) {
+    for (&left, &right) in left.iter().zip(right) {
+        let rand = fastrand::u64(..);
+        let dithering = (rand & 1) as i32 - ((rand >> 1) & 1) as i32;
+        let _ = output.try_push(limit_output(left, dithering));
+        let _ = output.try_push(limit_output(right, dithering));
     }
 }
 

@@ -20,7 +20,6 @@ use super::playback_engine::{EmulationState, PAL_CLOCK, generate_sample, process
 pub static AUDIO_ERROR: AtomicBool = AtomicBool::new(false);
 
 const AUDIO_BUFFER_SIZE: usize = 65_536;
-const SIDS_PER_TASK: usize = 2;
 
 const DEFAULT_FILTER_BIAS_6581: f64 = 0.24;
 const DEFAULT_SAMPLE_RATE: u32 = 48_000;
@@ -75,9 +74,6 @@ pub struct Config {
     pub digiboost: bool,
     pub filter_bias_6581: f64,
     pub fm_opl_enabled: bool,
-
-    #[builder(default=SIDS_PER_TASK)]
-    pub sids_per_task: usize,
 
     #[builder(default=false)]
     pub config_changed: bool
@@ -151,8 +147,8 @@ impl AudioRenderer {
     fn stop_audio_generator_thread(&mut self) {
         self.should_stop_audio_generator.store(true, Ordering::SeqCst);
 
-        if self.emulation_thread.is_some() {
-            let _ = self.emulation_thread.take().unwrap().join().ok();
+        if let Some(handle) = self.emulation_thread.take() {
+            let _ = handle.join();
         }
 
         self.should_stop_audio_generator.store(false, Ordering::SeqCst);
@@ -161,8 +157,8 @@ impl AudioRenderer {
     fn stop_audio_producer_thread(&mut self) {
         self.should_stop_audio_producer.store(true, Ordering::SeqCst);
 
-        if self.audio_thread.is_some() {
-            let _ = self.audio_thread.take().unwrap().join().ok();
+        if let Some(handle) = self.audio_thread.take() {
+            let _ = handle.join();
         }
 
         self.should_stop_audio_producer.store(false, Ordering::SeqCst);
@@ -186,25 +182,17 @@ impl AudioRenderer {
         self.start_audio_thread(audio_device_number, !restart);
 
         let config = self.config.clone();
-
-        let sound_buffer_clone = self.sound_buffer.clone();
-        let should_stop_audio_generator_clone = self.should_stop_audio_generator.clone();
-        let should_pause_clone = self.should_pause.clone();
-        let aborted = self.aborted.clone();
+        let sound_buffer = self.sound_buffer.clone();
         let queue = self.queue.clone();
-        let cycles_in_buffer = self.cycles_in_buffer.clone();
-
         let in_cmd_receiver = self.in_cmd_receiver.clone();
         let out_sid_read_sender = self.out_sid_read_sender.clone();
 
-        let queue_started = self.queue_started.clone();
-
         let device_state = DeviceState {
-            should_stop: should_stop_audio_generator_clone,
-            should_pause: should_pause_clone,
-            queue_started,
-            aborted,
-            cycles_in_buffer
+            should_stop: self.should_stop_audio_generator.clone(),
+            should_pause: self.should_pause.clone(),
+            queue_started: self.queue_started.clone(),
+            aborted: self.aborted.clone(),
+            cycles_in_buffer: self.cycles_in_buffer.clone()
         };
 
         self.emulation_thread = Some(thread::spawn(move || {
@@ -213,7 +201,7 @@ impl AudioRenderer {
                 &in_cmd_receiver,
                 &out_sid_read_sender,
                 &config,
-                &sound_buffer_clone,
+                &sound_buffer,
                 device_state
             )
         }));
@@ -235,26 +223,32 @@ impl AudioRenderer {
         let mut config = self.config.lock();
         config.sample_rate = sample_rate;
 
-        let should_stop_audio_producer_clone = self.should_stop_audio_producer.clone();
+        let should_stop = self.should_stop_audio_producer.clone();
         let should_pause = self.should_pause.clone();
-        let sound_buffer_clone = self.sound_buffer.clone();
+        let sound_buffer = self.sound_buffer.clone();
 
         if log_device_name {
             println!("Using audio device: \"{}\" (sample rate: {})\r", get_device_display_name(&device), sample_rate);
         }
 
         self.audio_thread = Some(thread::spawn(move || {
+            macro_rules! run_as {
+                ($sample:ty) => {
+                    run::<$sample>(&device, device_config.into(), sound_buffer, should_stop, should_pause)
+                };
+            }
+
             let _ = match device_config.sample_format() {
-                SampleFormat::I8 => run::<i8>(&device, device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
-                SampleFormat::U8 => run::<u8>(&device, device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
-                SampleFormat::I16 => run::<i16>(&device, device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
-                SampleFormat::U16 => run::<u16>(&device, device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
-                SampleFormat::I32 => run::<i32>(&device, device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
-                SampleFormat::U32 => run::<u32>(&device, device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
-                SampleFormat::F32 => run::<f32>(&device, device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
-                SampleFormat::I64 => run::<i64>(&device, device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
-                SampleFormat::U64 => run::<u64>(&device, device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
-                SampleFormat::F64 => run::<f64>(&device, device_config.into(), sound_buffer_clone, should_stop_audio_producer_clone, should_pause),
+                SampleFormat::I8 => run_as!(i8),
+                SampleFormat::U8 => run_as!(u8),
+                SampleFormat::I16 => run_as!(i16),
+                SampleFormat::U16 => run_as!(u16),
+                SampleFormat::I32 => run_as!(i32),
+                SampleFormat::U32 => run_as!(u32),
+                SampleFormat::F32 => run_as!(f32),
+                SampleFormat::I64 => run_as!(i64),
+                SampleFormat::U64 => run_as!(u64),
+                SampleFormat::F64 => run_as!(f64),
                 _ => Ok(()),
             };
         }));
@@ -303,10 +297,9 @@ impl AudioRenderer {
         device_state: DeviceState
     ) {
         let _ = set_current_thread_priority(ThreadPriority::Max);
-
         let mut state = EmulationState::new(&mut config.lock());
-
         let mut last_activity = Instant::now();
+
         loop {
             let mut config = config.lock();
 
