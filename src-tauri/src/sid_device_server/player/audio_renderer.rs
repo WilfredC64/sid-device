@@ -20,7 +20,7 @@ use super::playback_engine::{EmulationState, PAL_CLOCK, generate_sample, process
 pub static AUDIO_ERROR: AtomicBool = AtomicBool::new(false);
 
 const AUDIO_BUFFER_SIZE: usize = 65_536;
-const SIDS_PER_TASK: usize = 4;
+const SIDS_PER_TASK: usize = 2;
 
 const DEFAULT_FILTER_BIAS_6581: f64 = 0.24;
 const DEFAULT_SAMPLE_RATE: u32 = 48_000;
@@ -340,12 +340,14 @@ impl AudioRenderer {
                 }
             } else {
                 if device_state.should_pause.load(Ordering::Relaxed) || !device_state.queue_started.load(Ordering::Relaxed) {
+                    drop(config);
                     thread::sleep(Duration::from_millis(5));
                     continue;
                 }
 
                 try_generate_sample(sound_buffer, queue, &device_state.cycles_in_buffer, &mut config, &mut state);
                 if Self::has_enough_data(sound_buffer, &device_state) {
+                    drop(config);
                     thread::sleep(Duration::from_millis(1));
                 }
             }
