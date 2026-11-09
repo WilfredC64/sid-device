@@ -316,7 +316,7 @@ impl AudioRenderer {
                 if device_state.should_pause.load(Ordering::Relaxed) {
                     device_state.should_pause.store(false, Ordering::Relaxed);
                 }
-            } else if !device_state.should_pause.load(Ordering::Relaxed) && last_activity.elapsed().as_secs() > PAUSE_AUDIO_IDLE_TIME_IN_SEC {
+            } else if !device_state.should_pause.load(Ordering::Relaxed) && last_activity.elapsed() >= Duration::from_secs(PAUSE_AUDIO_IDLE_TIME_IN_SEC) {
                 device_state.should_pause.store(true, Ordering::Relaxed);
             }
 
