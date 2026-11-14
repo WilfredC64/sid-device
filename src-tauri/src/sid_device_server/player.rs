@@ -26,7 +26,6 @@ pub struct Player {
     aborted: Arc<AtomicBool>,
     player_cmd_sender: Sender<(PlayerCommand, Option<i32>)>,
     sid_read_receiver: Receiver<u8>,
-    wake_sender: Sender<()>,
     audio_device: AudioRenderer,
     fm_opl_enabled: bool,
 }
@@ -50,7 +49,6 @@ impl Player {
         let player_cmd_sender = audio_device.get_channel_sender();
 
         let sid_read_receiver = audio_device.get_sid_read_receiver();
-        let wake_sender = audio_device.get_wake_sender();
 
         Player {
             cycles_in_buffer,
@@ -59,7 +57,6 @@ impl Player {
             aborted,
             player_cmd_sender,
             sid_read_receiver,
-            wake_sender,
             audio_device,
             fm_opl_enabled: false,
         }
@@ -89,9 +86,7 @@ impl Player {
     }
 
     pub fn writes_done(&self) {
-        if self.queue_started.load(Ordering::Relaxed) {
-            self.wake_up_emulation();
-        } else if self.has_min_data_in_buffer() {
+        if !self.queue_started.load(Ordering::Relaxed) && self.has_min_data_in_buffer() {
             self.start_draining();
         }
     }
@@ -108,7 +103,6 @@ impl Player {
     pub fn flush(&mut self) {
         self.clear_queue();
         self.aborted.store(true, Ordering::SeqCst);
-        self.wake_up_emulation();
     }
 
     pub fn reset(&self) {
@@ -171,18 +165,12 @@ impl Player {
 
     fn start_draining(&self) {
         self.queue_started.store(true, Ordering::Relaxed);
-        self.wake_up_emulation();
     }
 
     fn clear_queue(&self) {
         self.cycles_in_buffer.store(0, Ordering::Relaxed);
         self.queue.clear();
         self.queue_started.store(false, Ordering::Relaxed);
-    }
-
-    #[inline]
-    fn wake_up_emulation(&self) {
-        let _ = self.wake_sender.try_send(());
     }
 
     fn dummy_write(&mut self, reg: u16, cycles: u16) {

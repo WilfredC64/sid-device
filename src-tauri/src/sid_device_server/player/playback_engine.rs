@@ -253,7 +253,7 @@ pub(super) fn process_player_command(
 }
 
 #[inline]
-pub(super) fn ms_to_samples(sample_rate: u32, millis: usize) -> usize {
+fn ms_to_samples(sample_rate: u32, millis: usize) -> usize {
     sample_rate as usize * OUTPUT_CHANNELS * millis / 1000
 }
 
