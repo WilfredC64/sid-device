@@ -20,6 +20,11 @@ const LOCAL_HOST: &str = "127.0.0.1";
 const ALLOW_ALL_HOST: &str = "0.0.0.0";
 const DEFAULT_PORT_NUMBER: &str = "6581";
 
+const ACCEPT_POLL_INTERVAL_IN_MILLIS: u64 = 50;
+const CLIENT_READ_TIMEOUT_IN_MILLIS: u64 = 100;
+const CLIENT_WRITE_TIMEOUT_IN_MILLIS: u64 = 100;
+const CLOSE_POLL_INTERVAL_IN_MILLIS: u64 = 10;
+
 const MAX_SID_CHIPS: u8 = 15;
 const PROTOCOL_VERSION: u8 = 5;
 const NUMBER_OF_DEVICES: u8 = 2;
@@ -180,7 +185,7 @@ impl SidDeviceServer {
                         println!("User interruption. Quitting...\r");
                         break;
                     }
-                    thread::sleep(Duration::from_millis(10));
+                    thread::sleep(Duration::from_millis(ACCEPT_POLL_INTERVAL_IN_MILLIS));
                     continue;
                 }
                 Err(e) => {
@@ -192,7 +197,7 @@ impl SidDeviceServer {
 
         // wait for connections to close
         while connection_count.load(Ordering::Relaxed) > 0 {
-            thread::sleep(Duration::from_millis(10));
+            thread::sleep(Duration::from_millis(CLOSE_POLL_INTERVAL_IN_MILLIS));
         }
         Ok(())
     }
@@ -218,8 +223,8 @@ impl SidDeviceServerThread {
 
     fn handle_client(&mut self, mut stream: TcpStream, mut receiver: Receiver<(SettingsCommand, Option<i32>)>, quit: Arc<AtomicBool>) {
         let mut data = [0u8; 4096];
-        stream.set_read_timeout(Some(Duration::from_millis(100))).unwrap();
-        stream.set_write_timeout(Some(Duration::from_millis(100))).unwrap();
+        stream.set_read_timeout(Some(Duration::from_millis(CLIENT_READ_TIMEOUT_IN_MILLIS))).unwrap();
+        stream.set_write_timeout(Some(Duration::from_millis(CLIENT_WRITE_TIMEOUT_IN_MILLIS))).unwrap();
         stream.set_nonblocking(false).unwrap();
 
         loop {

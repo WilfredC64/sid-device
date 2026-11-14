@@ -1,7 +1,7 @@
 // Copyright (C) 2023 Wilfred Bos
 // Licensed under the GNU GPL v3 license. See the LICENSE file for the terms and conditions.
 
-use std::{io, thread};
+use std::io;
 use std::io::ErrorKind;
 use std::net::{SocketAddr, UdpSocket};
 use std::time::Duration;
@@ -10,6 +10,8 @@ const LISTENING_ADDRESS : &str = "0.0.0.0";
 const LISTENING_PORT : &str = "6581";
 
 const MAX_DATA_SIZE: usize = 512;
+
+const DETECT_TIMEOUT_IN_MILLIS: u64 = 250;
 
 const MAGIC_ID: &str = "SidDevice";
 
@@ -27,7 +29,7 @@ pub struct SidDeviceListener {
 impl SidDeviceListener {
     pub fn new() -> io::Result<Self> {
         let socket = UdpSocket::bind([LISTENING_ADDRESS, LISTENING_PORT].join(":"))?;
-        socket.set_nonblocking(true)?;
+        socket.set_read_timeout(Some(Duration::from_millis(DETECT_TIMEOUT_IN_MILLIS)))?;
 
         let info = os_info::get();
 
@@ -56,11 +58,7 @@ impl SidDeviceListener {
                         return Ok(client);
                     }
                 }
-                Err(e) if e.kind() == ErrorKind::TimedOut => {
-                    return Ok(None);
-                }
-                Err(e) if e.kind() == ErrorKind::WouldBlock => {
-                    thread::sleep(Duration::from_millis(100));
+                Err(e) if e.kind() == ErrorKind::TimedOut || e.kind() == ErrorKind::WouldBlock => {
                     return Ok(None);
                 }
                 Err(e) => {

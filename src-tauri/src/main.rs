@@ -203,7 +203,10 @@ fn sid_device_detect_loop(listener: SidDeviceListener, settings: &Arc<Mutex<Sett
                 if let Some(client) = client {
                     let allow_external_connections = settings.lock().get_config().lock().allow_external_connections;
 
-                    if allow_external_connections {
+                    let discovery_allowed = allow_external_connections
+                        || utils::network::is_local_ip_address(&client.ip_address);
+
+                    if discovery_allowed {
                         println!("Client detected with address: {}:{}", client.ip_address, client.port);
 
                         if let Err(err) = listener.respond(&client) {
