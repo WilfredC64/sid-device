@@ -361,9 +361,7 @@ impl SidDeviceServerThread {
                 } else if !self.player.has_max_data_in_buffer() {
                     let cycles = ((data[4] as u16) << 8) + data[5] as u16;
                     self.player.write_to_sid((0x1e + sid_number * 0x20) as u16, 0, cycles);
-                    if self.player.has_min_data_in_buffer() {
-                        self.player.start_draining();
-                    }
+                    self.player.writes_done();
                     stream.write_all(&[CommandResponse::Ok as u8])?;
                 } else {
                     stream.write_all(&[CommandResponse::Busy as u8])?;
@@ -487,9 +485,7 @@ impl SidDeviceServerThread {
             self.player.write_to_sid(reg as u16, val, cycles);
         }
 
-        if self.player.has_min_data_in_buffer() {
-            self.player.start_draining();
-        }
+        self.player.writes_done();
 
         if data.len() == write_data_length + 3 {
             let cycles = ((data[write_data_length] as u16) << 8) + data[write_data_length + 1] as u16;
@@ -517,9 +513,7 @@ impl SidDeviceServerThread {
             self.player.write_to_sid(reg, val, cycles);
         }
 
-        if self.player.has_min_data_in_buffer() {
-            self.player.start_draining();
-        }
+        self.player.writes_done();
 
         if data.len() == write_data_length + 4 {
             let cycles = ((data[write_data_length] as u16) << 8) + data[write_data_length + 1] as u16;

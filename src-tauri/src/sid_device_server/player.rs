@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Wilfred Bos
+// Copyright (C) 2022 - 2026 Wilfred Bos
 // Licensed under the GNU GPL v3 license. See the LICENSE file for the terms and conditions.
 
 mod audio_renderer;
@@ -26,6 +26,7 @@ pub struct Player {
     aborted: Arc<AtomicBool>,
     player_cmd_sender: Sender<(PlayerCommand, Option<i32>)>,
     sid_read_receiver: Receiver<u8>,
+    wake_sender: Sender<()>,
     audio_device: AudioRenderer,
     fm_opl_enabled: bool,
 }
@@ -49,6 +50,7 @@ impl Player {
         let player_cmd_sender = audio_device.get_channel_sender();
 
         let sid_read_receiver = audio_device.get_sid_read_receiver();
+        let wake_sender = audio_device.get_wake_sender();
 
         Player {
             cycles_in_buffer,
@@ -57,6 +59,7 @@ impl Player {
             aborted,
             player_cmd_sender,
             sid_read_receiver,
+            wake_sender,
             audio_device,
             fm_opl_enabled: false,
         }
@@ -75,22 +78,22 @@ impl Player {
         enough_data
     }
 
-    pub fn has_min_data_in_buffer(&self) -> bool {
-        self.cycles_in_buffer.load(Ordering::Relaxed) > MIN_CYCLES_TO_DRAIN_QUEUE || self.queue.len() > MIN_WRITES_TO_DRAIN_QUEUE
-    }
-    
     pub fn is_fm_opl_enabled(&self) -> bool {
         self.fm_opl_enabled
-    }
-
-    pub fn start_draining(&self) {
-        self.queue_started.store(true, Ordering::Relaxed);
     }
 
     pub fn write_to_sid(&mut self, reg: u16, data: u8, cycles: u16) {
         let sid_write = SidWrite {reg, data, cycles};
         let _ = self.queue.try_push(sid_write);
         self.cycles_in_buffer.fetch_add(cycles as u32, Ordering::Relaxed);
+    }
+
+    pub fn writes_done(&self) {
+        if self.queue_started.load(Ordering::Relaxed) {
+            self.wake_up_emulation();
+        } else if self.has_min_data_in_buffer() {
+            self.start_draining();
+        }
     }
 
     pub fn read_from_sid(&mut self, reg: u16, cycles: u16) -> u8 {
@@ -105,6 +108,7 @@ impl Player {
     pub fn flush(&mut self) {
         self.clear_queue();
         self.aborted.store(true, Ordering::SeqCst);
+        self.wake_up_emulation();
     }
 
     pub fn reset(&self) {
@@ -161,10 +165,24 @@ impl Player {
         self.audio_device.set_audio_device(audio_device_number);
     }
 
+    fn has_min_data_in_buffer(&self) -> bool {
+        self.cycles_in_buffer.load(Ordering::Relaxed) > MIN_CYCLES_TO_DRAIN_QUEUE || self.queue.len() > MIN_WRITES_TO_DRAIN_QUEUE
+    }
+
+    fn start_draining(&self) {
+        self.queue_started.store(true, Ordering::Relaxed);
+        self.wake_up_emulation();
+    }
+
     fn clear_queue(&self) {
         self.cycles_in_buffer.store(0, Ordering::Relaxed);
         self.queue.clear();
         self.queue_started.store(false, Ordering::Relaxed);
+    }
+
+    #[inline]
+    fn wake_up_emulation(&self) {
+        let _ = self.wake_sender.try_send(());
     }
 
     fn dummy_write(&mut self, reg: u16, cycles: u16) {

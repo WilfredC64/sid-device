@@ -7,28 +7,30 @@ use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::{thread, time::{Duration, Instant}};
 
 use atomicring::AtomicRingBuffer;
-use cpal::{Device, FromSample, OutputCallbackInfo, SampleFormat, SizedSample, StreamConfig};
+use cpal::{Device, FromSample, OutputCallbackInfo, SampleFormat, SizedSample, StreamConfig, StreamError};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use crossbeam_channel::{Sender, Receiver, bounded};
+use crossbeam_channel::{Sender, Receiver, bounded, select};
 use typed_builder::TypedBuilder;
 
 use resid::{chip_model, sampling_method};
 use thread_priority::{set_current_thread_priority, ThreadPriority};
 use crate::utils::audio::get_device_display_name;
-use super::playback_engine::{EmulationState, PAL_CLOCK, generate_sample, process_player_command, try_generate_sample};
+use super::playback_engine::{EmulationState, PAL_CLOCK, ms_to_samples, process_player_command, try_fill_audio_buffer, try_render_batch};
 
 pub static AUDIO_ERROR: AtomicBool = AtomicBool::new(false);
 
-const AUDIO_BUFFER_SIZE: usize = 65_536;
+const AUDIO_BUFFER_SIZE: usize = 262_144;
 
 const DEFAULT_FILTER_BIAS_6581: f64 = 0.24;
 const DEFAULT_SAMPLE_RATE: u32 = 48_000;
 
 const CYCLES_IN_BUFFER_THRESHOLD: u32 = 10_000;
-const SOUND_BUFFER_SIZE_THRESHOLD: usize = 5_000;
+const SOUND_BUFFER_THRESHOLD_IN_MILLIS: usize = 50;
 
-const PAUSE_AUDIO_IDLE_TIME_IN_SEC: u64 = 2;
-const STOP_PAUSE_LATENCY_IN_MILLIS: u64 = 10;
+const PAUSE_AUDIO_IDLE_TIME: Duration = Duration::from_secs(2);
+const STOP_PAUSE_LATENCY: Duration = Duration::from_millis(10);
+
+const MAX_WAIT: Duration = Duration::from_millis(5);
 
 #[derive(Copy, Clone)]
 pub struct SidWrite {
@@ -84,6 +86,8 @@ pub struct AudioRenderer {
     in_cmd_receiver: Receiver<(PlayerCommand, Option<i32>)>,
     out_sid_read_sender: Sender<u8>,
     out_sid_read_receiver: Receiver<u8>,
+    wake_sender: Sender<()>,
+    wake_receiver: Receiver<()>,
     queue: Arc<AtomicRingBuffer<SidWrite>>,
     queue_started: Arc<AtomicBool>,
     aborted: Arc<AtomicBool>,
@@ -113,6 +117,7 @@ impl AudioRenderer {
     ) -> AudioRenderer {
         let (in_cmd_sender, in_cmd_receiver) = bounded(0);
         let (out_sid_read_sender, out_sid_read_receiver) = bounded(0);
+        let (wake_sender, wake_receiver) = bounded(1);
         let should_stop_audio_producer = Arc::new(AtomicBool::new(false));
         let should_stop_audio_generator = Arc::new(AtomicBool::new(false));
         let should_pause = Arc::new(AtomicBool::new(false));
@@ -124,6 +129,8 @@ impl AudioRenderer {
             in_cmd_receiver,
             out_sid_read_sender,
             out_sid_read_receiver,
+            wake_sender,
+            wake_receiver,
             queue,
             queue_started,
             aborted,
@@ -146,6 +153,7 @@ impl AudioRenderer {
 
     fn stop_audio_generator_thread(&mut self) {
         self.should_stop_audio_generator.store(true, Ordering::SeqCst);
+        let _ = self.wake_sender.try_send(());
 
         if let Some(handle) = self.emulation_thread.take() {
             let _ = handle.join();
@@ -158,6 +166,7 @@ impl AudioRenderer {
         self.should_stop_audio_producer.store(true, Ordering::SeqCst);
 
         if let Some(handle) = self.audio_thread.take() {
+            handle.thread().unpark();
             let _ = handle.join();
         }
 
@@ -186,6 +195,7 @@ impl AudioRenderer {
         let queue = self.queue.clone();
         let in_cmd_receiver = self.in_cmd_receiver.clone();
         let out_sid_read_sender = self.out_sid_read_sender.clone();
+        let wake_receiver = self.wake_receiver.clone();
 
         let device_state = DeviceState {
             should_stop: self.should_stop_audio_generator.clone(),
@@ -200,6 +210,7 @@ impl AudioRenderer {
                 &queue,
                 &in_cmd_receiver,
                 &out_sid_read_sender,
+                &wake_receiver,
                 &config,
                 &sound_buffer,
                 device_state
@@ -234,11 +245,11 @@ impl AudioRenderer {
         self.audio_thread = Some(thread::spawn(move || {
             macro_rules! run_as {
                 ($sample:ty) => {
-                    run::<$sample>(&device, device_config.into(), sound_buffer, should_stop, should_pause)
+                    run::<$sample>(&device, &device_config.into(), sound_buffer, should_stop, should_pause)
                 };
             }
 
-            let _ = match device_config.sample_format() {
+            let result = match device_config.sample_format() {
                 SampleFormat::I8 => run_as!(i8),
                 SampleFormat::U8 => run_as!(u8),
                 SampleFormat::I16 => run_as!(i16),
@@ -251,6 +262,11 @@ impl AudioRenderer {
                 SampleFormat::F64 => run_as!(f64),
                 _ => Ok(()),
             };
+
+            if let Err(e) = result {
+                AUDIO_ERROR.store(true, Ordering::SeqCst);
+                println!("ERROR: audio stream failed: {e}\r");
+            }
         }));
     }
 
@@ -290,8 +306,9 @@ impl AudioRenderer {
 
     fn sid_emulation_thread(
         queue: &Arc<AtomicRingBuffer<SidWrite>>,
-        in_cmd_receiver_clone: &Receiver<(PlayerCommand, Option<i32>)>,
+        in_cmd_receiver: &Receiver<(PlayerCommand, Option<i32>)>,
         out_sid_read_sender: &Sender<u8>,
+        wake_receiver: &Receiver<()>,
         config: &Arc<Mutex<Config>>,
         sound_buffer: &Arc<AtomicRingBuffer<i16>>,
         device_state: DeviceState
@@ -299,13 +316,26 @@ impl AudioRenderer {
         let _ = set_current_thread_priority(ThreadPriority::Max);
         let mut state = EmulationState::new(&mut config.lock());
         let mut last_activity = Instant::now();
+        let mut idle = false;
 
         loop {
-            let mut config = config.lock();
-
             if device_state.should_stop.load(Ordering::Relaxed) {
                 break;
             }
+
+            let cmd = if idle {
+                select! {
+                    recv(in_cmd_receiver) -> cmd => cmd.ok(),
+                    recv(wake_receiver) -> _ => None,
+                    default(MAX_WAIT) => None,
+                }
+            } else {
+                in_cmd_receiver.try_recv().ok()
+            };
+            idle = false;
+
+            let mut config = config.lock();
+
             if device_state.aborted.load(Ordering::SeqCst) {
                 sound_buffer.clear();
                 device_state.aborted.store(false, Ordering::SeqCst);
@@ -316,40 +346,40 @@ impl AudioRenderer {
                 if device_state.should_pause.load(Ordering::Relaxed) {
                     device_state.should_pause.store(false, Ordering::Relaxed);
                 }
-            } else if !device_state.should_pause.load(Ordering::Relaxed) && last_activity.elapsed() >= Duration::from_secs(PAUSE_AUDIO_IDLE_TIME_IN_SEC) {
+            } else if !device_state.should_pause.load(Ordering::Relaxed) && last_activity.elapsed() >= PAUSE_AUDIO_IDLE_TIME {
                 device_state.should_pause.store(true, Ordering::Relaxed);
             }
 
-            let cmd = process_player_command(in_cmd_receiver_clone, &mut config, &mut state);
-
             if let Some((command, param1)) = cmd {
+                process_player_command(command, param1, &mut config, &mut state);
+
                 if command == PlayerCommand::Read {
-                    while !queue.is_empty() {
-                        generate_sample(sound_buffer, queue, &device_state.cycles_in_buffer, &mut config, &mut state);
+                    while !queue.is_empty() && !device_state.should_stop.load(Ordering::Relaxed) {
+                        if !try_render_batch(sound_buffer, queue, &device_state.cycles_in_buffer, &mut config, &mut state) {
+                            thread::sleep(MAX_WAIT);
+                        }
                     }
 
                     let sid_env_out = state.read(&mut config, param1.unwrap_or(0));
                     let _ = out_sid_read_sender.send(sid_env_out);
                 }
-            } else {
-                if device_state.should_pause.load(Ordering::Relaxed) || !device_state.queue_started.load(Ordering::Relaxed) {
-                    drop(config);
-                    thread::sleep(Duration::from_millis(5));
-                    continue;
-                }
-
-                try_generate_sample(sound_buffer, queue, &device_state.cycles_in_buffer, &mut config, &mut state);
-                if Self::has_enough_data(sound_buffer, &device_state) {
-                    drop(config);
-                    thread::sleep(Duration::from_millis(1));
-                }
+                continue;
             }
+
+            if device_state.should_pause.load(Ordering::Relaxed) || !device_state.queue_started.load(Ordering::Relaxed) {
+                idle = true;
+                continue;
+            }
+
+            let rendered = try_fill_audio_buffer(sound_buffer, queue, &device_state.cycles_in_buffer, &mut config, &mut state);
+            idle = !rendered || Self::has_enough_data(sound_buffer, &device_state, config.sample_rate);
         }
     }
 
     #[inline]
-    fn has_enough_data(sound_buffer: &Arc<AtomicRingBuffer<i16>>, device_state: &DeviceState) -> bool {
-        device_state.cycles_in_buffer.load(Ordering::Relaxed) > CYCLES_IN_BUFFER_THRESHOLD && sound_buffer.len() > SOUND_BUFFER_SIZE_THRESHOLD
+    fn has_enough_data(sound_buffer: &Arc<AtomicRingBuffer<i16>>, device_state: &DeviceState, sample_rate: u32) -> bool {
+        device_state.cycles_in_buffer.load(Ordering::Relaxed) > CYCLES_IN_BUFFER_THRESHOLD
+            && sound_buffer.len() > ms_to_samples(sample_rate, SOUND_BUFFER_THRESHOLD_IN_MILLIS)
     }
 
     fn create_default_config(sample_rate: u32) -> Config {
@@ -374,39 +404,55 @@ impl AudioRenderer {
     pub fn get_sid_read_receiver(&self) -> Receiver<u8> {
         self.out_sid_read_receiver.clone()
     }
+
+    pub fn get_wake_sender(&self) -> Sender<()> {
+        self.wake_sender.clone()
+    }
 }
 
-fn run<T>(device: &Device, config: StreamConfig, sound_buffer: Arc<AtomicRingBuffer<i16>>, should_stop: Arc<AtomicBool>, should_pause: Arc<AtomicBool>) -> Result<(), anyhow::Error>
+fn run<T>(device: &Device, config: &StreamConfig, sound_buffer: Arc<AtomicRingBuffer<i16>>, should_stop: Arc<AtomicBool>, should_pause: Arc<AtomicBool>) -> Result<(), anyhow::Error>
 where
     T: SizedSample + FromSample<i16>
 {
-    let err_fn = |err| {
-        AUDIO_ERROR.store(true, Ordering::SeqCst);
-        println!("ERROR: {err}\r");
+    let err_fn = |err: StreamError| {
+        AUDIO_ERROR.store(true, Ordering::Relaxed);
+        println!("ERROR: audio stream error: {err}\r");
     };
 
-    let output_stream = move |data: &mut [T], _: &OutputCallbackInfo| {
-        for sample_slot in data.iter_mut() {
-            *sample_slot = T::from_sample(sound_buffer.try_pop().unwrap_or(0));
+    let channels = usize::from(config.channels).max(1);
+
+    let data_fn = move |data: &mut [T], _: &OutputCallbackInfo| {
+        for frame in data.chunks_exact_mut(channels) {
+            let left = sound_buffer.try_pop().unwrap_or(0);
+            let right = sound_buffer.try_pop().unwrap_or(0);
+
+            match frame {
+                [mono] => {
+                    let mixed = (i32::from(left) + i32::from(right)) / 2;
+                    *mono = T::from_sample(mixed as i16);
+                }
+                [l, r, rest @ ..] => {
+                    *l = T::from_sample(left);
+                    *r = T::from_sample(right);
+                    rest.fill(T::EQUILIBRIUM);
+                }
+                [] => {}
+            }
         }
     };
 
-    let stream = device.build_output_stream(&config, output_stream, err_fn, None)?;
+    let stream = device.build_output_stream(config, data_fn, err_fn, None)?;
     stream.pause()?;
     let mut is_paused = true;
 
     while !should_stop.load(Ordering::Relaxed) {
-        let should_pause_now = should_pause.load(Ordering::Relaxed);
-        if should_pause_now != is_paused {
-            if should_pause_now {
-                stream.pause()?;
-            } else {
-                stream.play()?;
-            }
-            is_paused = should_pause_now;
+        let want_pause = should_pause.load(Ordering::Relaxed);
+        if want_pause != is_paused {
+            if want_pause { stream.pause()? } else { stream.play()? }
+            is_paused = want_pause;
         }
 
-        thread::sleep(Duration::from_millis(STOP_PAUSE_LATENCY_IN_MILLIS));
+        thread::park_timeout(STOP_PAUSE_LATENCY);
     }
 
     Ok(())

@@ -6,7 +6,6 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use atomicring::AtomicRingBuffer;
-use crossbeam_channel::Receiver;
 use nuked_opl3::Opl3Chip;
 use resid::{chip_model, sampling_method};
 
@@ -16,14 +15,18 @@ use super::sid_emulation::SidEmulation;
 pub(super) const PAL_CLOCK: u32 = 985_248;
 const NTSC_CLOCK: u32 = 1_022_727;
 
-const AUDIO_STREAM_LIMIT: usize = 10_000;
-const AUDIO_STREAM_MAX_LIMIT: usize = 55_000;
+const OUTPUT_CHANNELS: usize = 2;
+
+const AUDIO_STREAM_LIMIT_IN_MILLIS: usize = 100;
+const AUDIO_STREAM_MAX_LIMIT_IN_MILLIS: usize = 500;
 
 const CYCLES_PER_BATCH: u32 = 5_000;
 const MAX_EVENTS_PER_BATCH: usize = 1_024;
 
 const PARALLEL_CYCLES_PER_BATCH: u32 = 20_000;
 const PARALLEL_MAX_EVENTS_PER_BATCH: usize = 4_096;
+
+const MAX_EVENT_CYCLES: u32 = u16::MAX as u32;
 
 const FM_INDEX_PORT: u16 = 0x240;
 const FM_DATA_PORT: u16 = 0x250;
@@ -171,11 +174,11 @@ impl EmulationState {
 }
 
 pub(super) fn process_player_command(
-    receiver: &Receiver<(PlayerCommand, Option<i32>)>,
+    command: PlayerCommand,
+    param: Option<i32>,
     config: &mut Config,
     state: &mut EmulationState,
-) -> Option<(PlayerCommand, Option<i32>)> {
-    let (command, param) = receiver.try_recv().ok()?;
+) {
     match command {
         PlayerCommand::SetModel => {
             if let Some(param) = param {
@@ -247,31 +250,37 @@ pub(super) fn process_player_command(
         PlayerCommand::Reset => config.config_changed = true,
         PlayerCommand::Read => {}
     }
-    Some((command, param))
 }
 
-pub(super) fn try_generate_sample(
+#[inline]
+pub(super) fn ms_to_samples(sample_rate: u32, millis: usize) -> usize {
+    sample_rate as usize * OUTPUT_CHANNELS * millis / 1000
+}
+
+#[inline]
+fn cycles_to_samples(cycles: u32, clock: u32, sample_rate: u32) -> usize {
+    (u64::from(cycles) * u64::from(sample_rate)).div_ceil(u64::from(clock)) as usize * OUTPUT_CHANNELS
+}
+
+pub(super) fn try_fill_audio_buffer(
     output: &Arc<AtomicRingBuffer<i16>>,
     queue: &Arc<AtomicRingBuffer<SidWrite>>,
     cycles_in_buffer: &Arc<AtomicU32>,
     config: &mut Config,
     state: &mut EmulationState,
-) {
-    if !queue.is_empty() && output.len() < AUDIO_STREAM_LIMIT {
-        generate_sample(output, queue, cycles_in_buffer, config, state);
-    }
+) -> bool {
+    !queue.is_empty()
+        && output.len() < ms_to_samples(config.sample_rate, AUDIO_STREAM_LIMIT_IN_MILLIS)
+        && try_render_batch(output, queue, cycles_in_buffer, config, state)
 }
 
-pub(super) fn generate_sample(
+pub(super) fn try_render_batch(
     output: &Arc<AtomicRingBuffer<i16>>,
     queue: &Arc<AtomicRingBuffer<SidWrite>>,
     cycles_in_buffer: &Arc<AtomicU32>,
     config: &mut Config,
     state: &mut EmulationState,
-) {
-    if output.len() > AUDIO_STREAM_MAX_LIMIT {
-        return;
-    }
+) -> bool {
     if config.config_changed {
         state.configure(config);
     }
@@ -281,6 +290,16 @@ pub(super) fn generate_sample(
     } else {
         (CYCLES_PER_BATCH, MAX_EVENTS_PER_BATCH)
     };
+
+    let max_batch_samples = cycles_to_samples(max_cycles + MAX_EVENT_CYCLES, config.clock, config.sample_rate);
+    let max_limit = min(
+        ms_to_samples(config.sample_rate, AUDIO_STREAM_MAX_LIMIT_IN_MILLIS),
+        output.capacity().saturating_sub(max_batch_samples),
+    );
+    if output.len() > max_limit {
+        return false;
+    }
+
     let total_cycles = collect_batch(queue, &mut state.events, max_cycles, max_events);
 
     state.sids.render(&state.events, total_cycles);
@@ -295,12 +314,16 @@ pub(super) fn generate_sample(
             cycles_in_buffer.store(0, Ordering::Relaxed);
         }
     }
+    !state.events.is_empty()
 }
 
 fn collect_batch(queue: &AtomicRingBuffer<SidWrite>, events: &mut Vec<SidWrite>, max_cycles: u32, max_events: usize) -> u32 {
     events.clear();
     let mut total_cycles = 0;
-    while total_cycles < max_cycles && events.len() < max_events {
+    for _ in 0..max_events {
+        if total_cycles >= max_cycles {
+            break;
+        }
         let Some(event) = queue.try_pop() else { break };
         total_cycles += u32::from(event.cycles);
         events.push(event);
