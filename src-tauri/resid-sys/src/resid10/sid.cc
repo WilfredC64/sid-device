@@ -27,6 +27,11 @@
 #include "sid.h"
 #include <cmath>
 
+#if defined(__SSE2__) || defined(_M_X64) || (defined(_M_IX86_FP) && _M_IX86_FP >= 2)
+#include <emmintrin.h>
+#define RESID_FIR_SSE2 1
+#endif
+
 #ifndef round
 #define round(x) (x>=0.0?floor(x+0.5):ceil(x-0.5))
 #endif
@@ -44,6 +49,44 @@ inline short clip(int input)
       return -32768;
     }
     return (short)input;
+}
+
+#if defined(_MSC_VER) && !defined(__clang__)
+#define RESID_FIR_NOINLINE __declspec(noinline)
+#else
+#define RESID_FIR_NOINLINE
+#endif
+
+// Convolution of the sample ring buffer with a FIR table.
+static RESID_FIR_NOINLINE int fir_convolve(const short* samples, const short* coefficients, int n)
+{
+#ifdef RESID_FIR_SSE2
+  __m128i acc0 = _mm_setzero_si128();
+  __m128i acc1 = _mm_setzero_si128();
+  int j = 0;
+  for (; j + 16 <= n; j += 16) {
+    acc0 = _mm_add_epi32(acc0, _mm_madd_epi16(
+      _mm_loadu_si128((const __m128i*)(samples + j)),
+      _mm_loadu_si128((const __m128i*)(coefficients + j))));
+    acc1 = _mm_add_epi32(acc1, _mm_madd_epi16(
+      _mm_loadu_si128((const __m128i*)(samples + j + 8)),
+      _mm_loadu_si128((const __m128i*)(coefficients + j + 8))));
+  }
+  acc0 = _mm_add_epi32(acc0, acc1);
+  acc0 = _mm_add_epi32(acc0, _mm_shuffle_epi32(acc0, 0x4e));
+  acc0 = _mm_add_epi32(acc0, _mm_shuffle_epi32(acc0, 0xb1));
+  unsigned v = (unsigned)_mm_cvtsi128_si32(acc0);
+  for (; j < n; j++) {
+    v += (unsigned)(samples[j]*coefficients[j]);
+  }
+  return (int)v;
+#else
+  unsigned v = 0;
+  for (int j = 0; j < n; j++) {
+    v += (unsigned)(samples[j]*coefficients[j]);
+  }
+  return (int)v;
+#endif
 }
 
 // ----------------------------------------------------------------------------
@@ -939,10 +982,7 @@ int SID::clock_resample(cycle_count& delta_t, short* buf, int n, int interleave)
     short* sample_start = sample + sample_index - fir_N - 1 + RINGSIZE;
 
     // Convolution with filter impulse response.
-    int v1 = 0;
-    for (int j = 0; j < fir_N; j++) {
-      v1 += sample_start[j]*fir_start[j];
-    }
+    int v1 = fir_convolve(sample_start, fir_start, fir_N);
 
     // Use next FIR table, wrap around to first FIR table using
     // next sample.
@@ -953,10 +993,7 @@ int SID::clock_resample(cycle_count& delta_t, short* buf, int n, int interleave)
     fir_start = fir + fir_offset*fir_N;
 
     // Convolution with filter impulse response.
-    int v2 = 0;
-    for (int k = 0; k < fir_N; k++) {
-      v2 += sample_start[k]*fir_start[k];
-    }
+    int v2 = fir_convolve(sample_start, fir_start, fir_N);
 
     // Linear interpolation.
     // fir_offset_rmd is equal for all samples, it can thus be factorized out:
@@ -1005,10 +1042,7 @@ int SID::clock_resample_fastmem(cycle_count& delta_t, short* buf, int n, int int
     short* sample_start = sample + sample_index - fir_N + RINGSIZE;
 
     // Convolution with filter impulse response.
-    int v = 0;
-    for (int j = 0; j < fir_N; j++) {
-      v += sample_start[j]*fir_start[j];
-    }
+    int v = fir_convolve(sample_start, fir_start, fir_N);
 
     v >>= FIR_SHIFT;
 
