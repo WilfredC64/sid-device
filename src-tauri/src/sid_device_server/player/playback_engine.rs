@@ -214,8 +214,8 @@ pub(super) fn process_player_command(
                 let position = ((param & 0xff) as i8) as i32;
                 let sid_number = param >> 8;
                 if sid_number >= 0 && sid_number < config.sid_count {
-                    config.position_left[sid_number as usize] = if position >= 0 { 100 } else { 100 + position };
-                    config.position_right[sid_number as usize] = if position <= 0 { 100 } else { 100 - position };
+                    config.position_left[sid_number as usize] = if position <= 0 { 100 } else { 100 - position };
+                    config.position_right[sid_number as usize] = if position >= 0 { 100 } else { 100 + position };
                 }
             }
         }
