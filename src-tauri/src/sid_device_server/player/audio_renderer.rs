@@ -10,7 +10,6 @@ use atomicring::AtomicRingBuffer;
 use cpal::{Device, FromSample, OutputCallbackInfo, SampleFormat, SizedSample, StreamConfig, StreamError};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use crossbeam_channel::{Sender, Receiver, bounded};
-use typed_builder::TypedBuilder;
 
 use resid::{chip_model, sampling_method};
 use thread_priority::{set_current_thread_priority, ThreadPriority};
@@ -30,11 +29,23 @@ const STOP_PAUSE_LATENCY: Duration = Duration::from_millis(10);
 const IDLE_WAIT: Duration = Duration::from_millis(5);
 const SHORT_IDLE_WAIT: Duration = Duration::from_millis(1);
 
+const NO_REGISTER: u16 = u16::MAX;
+
 #[derive(Copy, Clone)]
 pub struct SidWrite {
     pub reg: u16,
     pub data: u8,
     pub cycles: u16,
+}
+
+impl SidWrite {
+    pub fn delay(cycles: u16) -> Self {
+        Self { reg: NO_REGISTER, data: 0, cycles }
+    }
+
+    pub fn is_delay(&self) -> bool {
+        self.reg == NO_REGISTER
+    }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -62,21 +73,17 @@ struct DeviceState {
     cycles_in_buffer: Arc<AtomicU32>
 }
 
-#[derive(TypedBuilder)]
 pub struct Config {
     pub sample_rate: u32,
     pub sampling_method: sampling_method,
     pub clock: u32,
     pub sid_count: i32,
-    pub chip_model: Vec<chip_model>,
-    pub position_left: Vec<i32>,
-    pub position_right: Vec<i32>,
+    pub chip_models: Vec<chip_model>,
+    pub positions_left: Vec<i32>,
+    pub positions_right: Vec<i32>,
     pub digiboost: bool,
     pub filter_bias_6581: f64,
     pub fm_opl_enabled: bool,
-
-    #[builder(default=false)]
-    pub config_changed: bool
 }
 
 pub struct AudioRenderer {
@@ -303,7 +310,7 @@ impl AudioRenderer {
         device_state: DeviceState
     ) {
         let _ = set_current_thread_priority(ThreadPriority::Max);
-        let mut state = EmulationState::new(&mut config.lock());
+        let mut state = EmulationState::new(&config.lock());
         let mut last_activity = Instant::now();
         let mut idle_wait = None;
 
@@ -338,12 +345,12 @@ impl AudioRenderer {
 
                 if command == PlayerCommand::Read {
                     while !queue.is_empty() && !device_state.should_stop.load(Ordering::Relaxed) {
-                        if !try_render_batch(sound_buffer, queue, &device_state.cycles_in_buffer, &mut config, &mut state) {
+                        if !try_render_batch(sound_buffer, queue, &device_state.cycles_in_buffer, &config, &mut state) {
                             thread::sleep(SHORT_IDLE_WAIT);
                         }
                     }
 
-                    let sid_env_out = state.read(&mut config, param1.unwrap_or(0));
+                    let sid_env_out = param1.map_or(0, |reg| state.read(&config, reg));
                     let _ = out_sid_read_sender.send(sid_env_out);
                 }
                 continue;
@@ -354,7 +361,7 @@ impl AudioRenderer {
                 continue;
             }
 
-            let rendered = try_fill_audio_buffer(sound_buffer, queue, &device_state.cycles_in_buffer, &mut config, &mut state);
+            let rendered = try_fill_audio_buffer(sound_buffer, queue, &device_state.cycles_in_buffer, &config, &mut state);
             if queue.is_empty() {
                 idle_wait = Some(SHORT_IDLE_WAIT);
             } else if !rendered {
@@ -364,18 +371,18 @@ impl AudioRenderer {
     }
 
     fn create_default_config(sample_rate: u32) -> Config {
-        Config::builder()
-            .sample_rate(sample_rate)
-            .sampling_method(sampling_method::SAMPLE_RESAMPLE)
-            .clock(PAL_CLOCK)
-            .sid_count(1)
-            .chip_model(vec![chip_model::MOS6581])
-            .position_left(vec![0])
-            .position_right(vec![0])
-            .digiboost(false)
-            .fm_opl_enabled(false)
-            .filter_bias_6581(DEFAULT_FILTER_BIAS_6581)
-            .build()
+        Config {
+            sample_rate,
+            sampling_method: sampling_method::SAMPLE_RESAMPLE,
+            clock: PAL_CLOCK,
+            sid_count: 1,
+            chip_models: vec![chip_model::MOS6581],
+            positions_left: vec![0],
+            positions_right: vec![0],
+            digiboost: false,
+            filter_bias_6581: DEFAULT_FILTER_BIAS_6581,
+            fm_opl_enabled: false,
+        }
     }
 
     pub fn get_channel_sender(&self) -> Sender<(PlayerCommand, Option<i32>)> {

@@ -1,7 +1,7 @@
 // Copyright (C) 2026 Wilfred Bos
 // Licensed under the GNU GPL v3 license. See the LICENSE file for the terms and conditions.
 
-use resid::{Sid, chip_model};
+use resid::{Sid, chip_model, sampling_method};
 use thread_priority::{ThreadPriority, set_current_thread_priority};
 
 use super::audio_renderer::{Config, SidWrite};
@@ -15,6 +15,7 @@ const VOICE_MASK_DIGIBOOST: u32 = 0x0f;
 
 struct Chip {
     sid: Sid,
+    model: chip_model,
     index: usize,
     is_last: bool,
     scratch: Vec<i16>,
@@ -31,17 +32,19 @@ pub(super) struct SidEmulation {
     chips: Vec<Chip>,
     parallel: Option<ParallelRenderer>,
     max_threads: usize,
+    clock: u32,
+    sampling_method: sampling_method,
 }
 
 impl SidEmulation {
-    pub(super) fn new(config: &Config) -> Self {
-        let mut emulation = Self {
+    pub(super) fn new() -> Self {
+        Self {
             chips: Vec::new(),
             parallel: None,
             max_threads: std::thread::available_parallelism().map_or(1, usize::from),
-        };
-        emulation.configure(config);
-        emulation
+            clock: 0,
+            sampling_method: sampling_method::SAMPLE_RESAMPLE,
+        }
     }
 
     fn configure_parallel(&mut self, sid_count: usize) {
@@ -83,8 +86,10 @@ impl SidEmulation {
     pub(super) fn configure(&mut self, config: &Config) {
         let count = config.sid_count as usize;
         self.configure_parallel(count);
+        self.clock = config.clock;
+        self.sampling_method = config.sampling_method.clone();
 
-        let models = config.chip_model.iter().take(count);
+        let models = config.chip_models.iter().take(count);
         let total = models.len();
         self.chips = models
             .enumerate()
@@ -92,12 +97,28 @@ impl SidEmulation {
             .collect();
     }
 
+    pub(super) fn apply_changes(&mut self, config: &Config) {
+        if self.clock != config.clock || self.sampling_method != config.sampling_method {
+            self.clock = config.clock;
+            self.sampling_method = config.sampling_method.clone();
+            for chip in &mut self.chips {
+                chip.set_sampling_parameters(config);
+            }
+        }
+
+        for (chip, model) in self.chips.iter_mut().zip(&config.chip_models) {
+            if chip.model != *model {
+                chip.set_model(model, config);
+            }
+        }
+    }
+
     pub(super) fn read(&mut self, index: usize, reg: u32) -> u8 {
         self.chips[index].sid.read(reg) as u8
     }
 
     pub(super) fn set_digiboost(&mut self, config: &Config) {
-        for (chip, model) in self.chips.iter_mut().zip(&config.chip_model) {
+        for (chip, model) in self.chips.iter_mut().zip(&config.chip_models) {
             if *model == chip_model::MOS8580 {
                 chip.sid.set_voice_mask(if config.digiboost { VOICE_MASK_DIGIBOOST } else { VOICE_MASK_DEFAULT });
                 chip.sid.input(if config.digiboost { i16::MIN } else { 0 });
@@ -106,7 +127,7 @@ impl SidEmulation {
     }
 
     pub(super) fn set_filter_bias(&mut self, config: &Config) {
-        for (chip, model) in self.chips.iter_mut().zip(&config.chip_model) {
+        for (chip, model) in self.chips.iter_mut().zip(&config.chip_models) {
             if *model == chip_model::MOS6581 {
                 chip.sid.adjust_filter_bias(config.filter_bias_6581);
             }
@@ -163,39 +184,48 @@ fn render_group(chips: &mut [Chip], events: &[SidWrite]) {
 
 impl Chip {
     fn new(index: usize, is_last: bool, model: &chip_model, config: &Config) -> Self {
-        let mut sid = Sid::new();
-        sid.set_chip_model(model.clone());
-        let _ = sid.set_sampling_parameters(
-            config.clock as f64,
-            config.sampling_method.clone(),
-            config.sample_rate as f64,
-        );
-        sid.enable_filter(true);
-
-        if *model == chip_model::MOS6581 {
-            sid.adjust_filter_bias(config.filter_bias_6581);
-        }
-
-        let boost = *model == chip_model::MOS8580 && config.digiboost;
-        sid.set_voice_mask(if boost { VOICE_MASK_DIGIBOOST } else { VOICE_MASK_DEFAULT });
-        sid.input(if boost { i16::MIN } else { 0 });
-        sid.clock_delta(0xffff);
-
-        Self {
-            sid,
+        let mut chip = Self {
+            sid: Sid::new(),
+            model: model.clone(),
             index,
             is_last,
             scratch: vec![0; SCRATCH_SAMPLES],
             output: Vec::new(),
             event_sample_lengths: Vec::new(),
-        }
+        };
+        chip.sid.enable_filter(true);
+        chip.set_sampling_parameters(config);
+        chip.set_model(model, config);
+        chip
     }
 
-    fn is_event_for_this_sid(&self, reg: u16) -> bool {
-        if (0x200..0x300).contains(&reg) {
-            return false; // FM-OPL register space
+    fn set_sampling_parameters(&mut self, config: &Config) {
+        let _ = self.sid.set_sampling_parameters(
+            config.clock as f64,
+            config.sampling_method.clone(),
+            config.sample_rate as f64,
+        );
+    }
+
+    fn set_model(&mut self, model: &chip_model, config: &Config) {
+        self.model = model.clone();
+        let sid = &mut self.sid;
+        sid.set_chip_model(model.clone());
+        sid.reset();
+        sid.adjust_filter_bias(if *model == chip_model::MOS6581 { config.filter_bias_6581 } else { 0.0 });
+
+        let boost = *model == chip_model::MOS8580 && config.digiboost;
+        sid.set_voice_mask(if boost { VOICE_MASK_DIGIBOOST } else { VOICE_MASK_DEFAULT });
+        sid.input(if boost { i16::MIN } else { 0 });
+        sid.clock_delta(0xffff);
+    }
+
+    fn is_event_for_this_sid(&self, event: &SidWrite) -> bool {
+        let is_fm_opl_register = (0x200..0x300).contains(&event.reg);
+        if event.is_delay() || is_fm_opl_register {
+            return false;
         }
-        let target = usize::from(reg >> 5);
+        let target = usize::from(event.reg >> 5);
         if self.is_last { target >= self.index } else { target == self.index }
     }
 
@@ -205,15 +235,13 @@ impl Chip {
         for event in events {
             let start = self.output.len();
             let mut cycles = u32::from(event.cycles);
-            if cycles != 0 {
-                while cycles != 0 {
-                    let (length, remaining) = self.sid.sample(cycles, &mut self.scratch, 1);
-                    self.output.extend_from_slice(&self.scratch[..length]);
-                    cycles = remaining;
-                }
-                if self.is_event_for_this_sid(event.reg) {
-                    self.sid.write(u32::from(event.reg & 0x1f), u32::from(event.data));
-                }
+            while cycles != 0 {
+                let (length, remaining) = self.sid.sample(cycles, &mut self.scratch, 1);
+                self.output.extend_from_slice(&self.scratch[..length]);
+                cycles = remaining;
+            }
+            if self.is_event_for_this_sid(event) {
+                self.sid.write(u32::from(event.reg & 0x1f), u32::from(event.data));
             }
             self.event_sample_lengths.push(self.output.len() - start);
         }

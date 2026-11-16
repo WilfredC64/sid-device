@@ -365,7 +365,7 @@ impl SidDeviceServerThread {
                     stream.write_all(&[CommandResponse::Error as u8])?;
                 } else if !self.player.has_max_data_in_buffer() {
                     let cycles = ((data[4] as u16) << 8) + data[5] as u16;
-                    self.player.write_to_sid((0x1e + sid_number * 0x20) as u16, 0, cycles);
+                    self.player.delay_next_event(cycles);
                     self.player.writes_done();
                     stream.write_all(&[CommandResponse::Ok as u8])?;
                 } else {

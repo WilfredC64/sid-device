@@ -79,9 +79,7 @@ impl FmOpl {
             }
             offset = end;
 
-            if event.cycles != 0 {
-                self.write(event.reg, event.data);
-            }
+            self.write(event.reg, event.data);
         }
     }
 
@@ -104,38 +102,53 @@ impl FmOpl {
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum PendingConfig {
+    None,
+    Changes,
+    FullReset,
+}
+
 pub(super) struct EmulationState {
     sids: SidEmulation,
     opl: FmOpl,
     events: Vec<SidWrite>,
     mix_left: Vec<i32>,
     mix_right: Vec<i32>,
+    pending_config: PendingConfig,
 }
 
 impl EmulationState {
-    pub(super) fn new(config: &mut Config) -> Self {
-        config.config_changed = false;
+    pub(super) fn new(config: &Config) -> Self {
         Self {
-            sids: SidEmulation::new(config),
+            sids: SidEmulation::new(),
             opl: FmOpl::new(config.sample_rate),
             events: Vec::with_capacity(MAX_EVENTS_PER_BATCH),
             mix_left: Vec::new(),
             mix_right: Vec::new(),
+            pending_config: PendingConfig::FullReset,
         }
     }
 
-    fn configure(&mut self, config: &mut Config) {
-        self.sids.configure(config);
-        if config.fm_opl_enabled {
-            self.opl.reset(config.sample_rate);
-        }
-        config.config_changed = false;
+    fn request_config(&mut self, pending: PendingConfig) {
+        self.pending_config = self.pending_config.max(pending);
     }
 
-    pub(super) fn read(&mut self, config: &mut Config, reg: i32) -> u8 {
-        if config.config_changed {
-            self.configure(config);
+    fn apply_config(&mut self, config: &Config) {
+        match std::mem::replace(&mut self.pending_config, PendingConfig::None) {
+            PendingConfig::None => {}
+            PendingConfig::Changes => self.sids.apply_changes(config),
+            PendingConfig::FullReset => {
+                self.sids.configure(config);
+                if config.fm_opl_enabled {
+                    self.opl.reset(config.sample_rate);
+                }
+            }
         }
+    }
+
+    pub(super) fn read(&mut self, config: &Config, reg: i32) -> u8 {
+        self.apply_config(config);
         let sid_num = min(reg >> 5, config.sid_count - 1) as usize;
         self.sids.read(sid_num, reg as u32 & 0x1f)
     }
@@ -153,7 +166,7 @@ impl EmulationState {
             let (position_left, position_right) = if sid_count == 1 {
                 (100, 100)
             } else {
-                (config.position_left[index], config.position_right[index])
+                (config.positions_left[index], config.positions_right[index])
             };
             let samples = self.sids.samples(index);
             for ((left, right), &sample) in self.mix_left.iter_mut().zip(self.mix_right.iter_mut()).zip(samples) {
@@ -184,13 +197,13 @@ pub(super) fn process_player_command(
             if let Some(param) = param {
                 let sid_number = param >> 8;
                 if sid_number >= 0 && sid_number < config.sid_count {
-                    config.chip_model[sid_number as usize] = if param & 0xff == 0 {
+                    config.chip_models[sid_number as usize] = if param & 0xff == 0 {
                         chip_model::MOS6581
                     } else {
                         chip_model::MOS8580
                     };
+                    state.request_config(PendingConfig::Changes);
                 }
-                config.config_changed = true;
             }
         }
         PlayerCommand::SetClock => {
@@ -199,23 +212,23 @@ pub(super) fn process_player_command(
             } else {
                 NTSC_CLOCK
             };
-            config.config_changed = true;
+            state.request_config(PendingConfig::Changes);
         }
         PlayerCommand::SetSidCount => {
             let count = param.unwrap() as usize;
             config.sid_count = count as i32;
-            config.chip_model = vec![config.chip_model[0].clone(); count];
-            config.position_left = vec![0; count];
-            config.position_right = vec![0; count];
-            config.config_changed = true;
+            config.chip_models = vec![config.chip_models[0].clone(); count];
+            config.positions_left = vec![0; count];
+            config.positions_right = vec![0; count];
+            state.request_config(PendingConfig::FullReset);
         }
         PlayerCommand::SetPosition => {
             if let Some(param) = param {
                 let position = ((param & 0xff) as i8) as i32;
                 let sid_number = param >> 8;
                 if sid_number >= 0 && sid_number < config.sid_count {
-                    config.position_left[sid_number as usize] = if position <= 0 { 100 } else { 100 - position };
-                    config.position_right[sid_number as usize] = if position >= 0 { 100 } else { 100 + position };
+                    config.positions_left[sid_number as usize] = if position <= 0 { 100 } else { 100 - position };
+                    config.positions_right[sid_number as usize] = if position >= 0 { 100 } else { 100 + position };
                 }
             }
         }
@@ -225,7 +238,7 @@ pub(super) fn process_player_command(
             } else {
                 sampling_method::SAMPLE_INTERPOLATE
             };
-            config.config_changed = true;
+            state.request_config(PendingConfig::Changes);
         }
         PlayerCommand::EnableDigiboost | PlayerCommand::DisableDigiboost => {
             config.digiboost = command == PlayerCommand::EnableDigiboost;
@@ -247,7 +260,7 @@ pub(super) fn process_player_command(
                 state.sids.set_sampling_frequency(param as u32);
             }
         }
-        PlayerCommand::Reset => config.config_changed = true,
+        PlayerCommand::Reset => state.request_config(PendingConfig::FullReset),
         PlayerCommand::Read => {}
     }
 }
@@ -266,7 +279,7 @@ pub(super) fn try_fill_audio_buffer(
     output: &Arc<AtomicRingBuffer<i16>>,
     queue: &Arc<AtomicRingBuffer<SidWrite>>,
     cycles_in_buffer: &Arc<AtomicU32>,
-    config: &mut Config,
+    config: &Config,
     state: &mut EmulationState,
 ) -> bool {
     !queue.is_empty()
@@ -278,12 +291,10 @@ pub(super) fn try_render_batch(
     output: &Arc<AtomicRingBuffer<i16>>,
     queue: &Arc<AtomicRingBuffer<SidWrite>>,
     cycles_in_buffer: &Arc<AtomicU32>,
-    config: &mut Config,
+    config: &Config,
     state: &mut EmulationState,
 ) -> bool {
-    if config.config_changed {
-        state.configure(config);
-    }
+    state.apply_config(config);
 
     let (max_cycles, max_events) = if state.sids.is_parallel() {
         (PARALLEL_CYCLES_PER_BATCH, PARALLEL_MAX_EVENTS_PER_BATCH)

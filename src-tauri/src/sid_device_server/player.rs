@@ -80,9 +80,11 @@ impl Player {
     }
 
     pub fn write_to_sid(&mut self, reg: u16, data: u8, cycles: u16) {
-        let sid_write = SidWrite {reg, data, cycles};
-        let _ = self.queue.try_push(sid_write);
-        self.cycles_in_buffer.fetch_add(cycles as u32, Ordering::Relaxed);
+        self.queue_event(SidWrite {reg, data, cycles});
+    }
+
+    pub fn delay_next_event(&mut self, cycles: u16) {
+        self.queue_event(SidWrite::delay(cycles));
     }
 
     pub fn writes_done(&self) {
@@ -93,7 +95,7 @@ impl Player {
 
     pub fn read_from_sid(&mut self, reg: u16, cycles: u16) -> u8 {
         self.queue_started.store(true, Ordering::Relaxed);
-        self.dummy_write(reg, cycles);
+        self.delay_next_event(cycles);
 
         let _ = self.player_cmd_sender.send((PlayerCommand::Read, Some(reg as i32)));
         let sid_env_out = self.sid_read_receiver.recv();
@@ -173,7 +175,8 @@ impl Player {
         self.queue_started.store(false, Ordering::Relaxed);
     }
 
-    fn dummy_write(&mut self, reg: u16, cycles: u16) {
-        self.write_to_sid((reg & 0x1e0) + 0x1e, 0, cycles);
+    fn queue_event(&mut self, event: SidWrite) {
+        let _ = self.queue.try_push(event);
+        self.cycles_in_buffer.fetch_add(event.cycles as u32, Ordering::Relaxed);
     }
 }
