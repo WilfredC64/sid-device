@@ -16,7 +16,7 @@
                         </pattern>
                     </defs>
                     <text x="50%" y="40" text-anchor="middle" font-size="40" font-weight="bold" letter-spacing="3"
-                        fill="url(#titleColorBars)" stroke="#000000" stroke-width="4" stroke-linejoin="round" paint-order="stroke">SID Device v1.0.4</text>
+                        fill="url(#titleColorBars)" stroke="#000000" stroke-width="3" stroke-linejoin="round" paint-order="stroke">SID Device v1.0.4</text>
                 </svg>
             </div>
             <div class="credits">
