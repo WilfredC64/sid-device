@@ -203,6 +203,32 @@ impl SidDeviceServer {
     }
 }
 
+fn drain_requests(pending: &mut Vec<u8>, mut process_request: impl FnMut(&[u8]) -> io::Result<()>) -> io::Result<()> {
+    let mut start = 0;
+    while let Some(request) = complete_request(&pending[start..]) {
+        process_request(request)?;
+        start += request.len();
+    }
+    pending.drain(..start);
+    Ok(())
+}
+
+fn complete_request(buffer: &[u8]) -> Option<&[u8]> {
+    let header = buffer.get(..DATA_HEADER_SIZE)?;
+    let payload_length = u16::from_be_bytes([header[2], header[3]]) as usize;
+    buffer.get(..DATA_HEADER_SIZE + payload_length)
+}
+
+fn close_connection(stream: &TcpStream, error: Option<&io::Error>) {
+    let peer = stream.peer_addr().map(|a| a.to_string()).unwrap_or_else(|_| "<unknown>".to_string());
+    match error {
+        Some(error) => println!("Terminating connection for client: {peer} ({error})\r"),
+        None => println!("Client disconnected: {peer}\r")
+    }
+
+    let _ = stream.shutdown(Shutdown::Both);
+}
+
 pub struct SidDeviceServerThread {
     player: Player
 }
@@ -223,6 +249,7 @@ impl SidDeviceServerThread {
 
     fn handle_client(&mut self, mut stream: TcpStream, mut receiver: Receiver<(SettingsCommand, Option<i32>)>, quit: Arc<AtomicBool>) {
         let mut data = [0u8; 4096];
+        let mut pending = Vec::new();
         stream.set_read_timeout(Some(Duration::from_millis(CLIENT_READ_TIMEOUT_IN_MILLIS))).unwrap();
         stream.set_write_timeout(Some(Duration::from_millis(CLIENT_WRITE_TIMEOUT_IN_MILLIS))).unwrap();
         stream.set_nonblocking(false).unwrap();
@@ -252,18 +279,14 @@ impl SidDeviceServerThread {
             }
 
             match stream.read(&mut data) {
+                Ok(0) => {
+                    close_connection(&stream, None);
+                    break;
+                }
                 Ok(size) => {
-                    if size >= DATA_HEADER_SIZE {
-                        if self.process_command(&mut stream, &data[0..size]).is_err() {
-                            break;
-                        }
-                    } else if size == 0 {
-                        println!(
-                            "Client disconnected: {}\r",
-                            stream.peer_addr().map(|a| a.to_string()).unwrap_or_else(|_| "<unknown>".to_string())
-                        );
-
-                        let _ = stream.shutdown(Shutdown::Both);
+                    pending.extend_from_slice(&data[0..size]);
+                    if let Err(e) = drain_requests(&mut pending, |request| self.process_command(&mut stream, request)) {
+                        close_connection(&stream, Some(&e));
                         break;
                     }
                 }
@@ -271,13 +294,7 @@ impl SidDeviceServerThread {
                     continue;
                 }
                 Err(e) => {
-                    println!("ERROR: {}, {:?}\r", e, e.kind());
-                    println!(
-                        "Terminating connection for client: {}\r",
-                        stream.peer_addr().map(|a| a.to_string()).unwrap_or_else(|_| "<unknown>".to_string())
-                    );
-
-                    let _ = stream.shutdown(Shutdown::Both);
+                    close_connection(&stream, Some(&e));
                     break;
                 }
             }
@@ -297,17 +314,8 @@ impl SidDeviceServerThread {
         let sid_number: u8 = data[1];
         let data_length: usize = ((data[2] as usize) << 8) + (data[3] as usize);
 
-        if data_length > data.len() - DATA_HEADER_SIZE && !matches!(command, Command::Flush) {
-            println!("ERROR: Not all data is retrieved. {} {} {}\r", command as u8, data_length, data.len() - DATA_HEADER_SIZE);
-            stream.write_all(&[CommandResponse::Error as u8])?;
-            stream.flush()?;
-            return Ok(());
-        }
-
         if self.player.has_error() {
-            println!("ERROR: Audio error occurred.\r");
-            stream.shutdown(Shutdown::Both)?;
-            return Err(io::Error::other("Audio error."));
+            return Err(io::Error::other("Audio error occurred"));
         }
 
         match command {
