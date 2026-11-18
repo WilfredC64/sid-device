@@ -15,8 +15,8 @@
                             <rect v-for="(bar, index) in colorBars" :key="index" :y="bar.y" width="600" :height="bar.height" :fill="bar.color" />
                         </pattern>
                     </defs>
-                    <text x="50%" y="38" text-anchor="middle" font-size="36" font-weight="bold"
-                        fill="url(#titleColorBars)" stroke="#000000" stroke-width="1" paint-order="stroke">SID Device v1.0.4</text>
+                    <text x="50%" y="40" text-anchor="middle" font-size="40" font-weight="bold" letter-spacing="3"
+                        fill="url(#titleColorBars)" stroke="#000000" stroke-width="4" stroke-linejoin="round" paint-order="stroke">SID Device v1.0.4</text>
                 </svg>
             </div>
             <div class="credits">
@@ -210,11 +210,10 @@ p {
 
 .title {
     display: block;
-    height: 50px;
+    height: 54px;
     padding: 4px 0;
     color: #3838a0;
     background: linear-gradient(#444450 5%, #dfdff4 20%, #dfdff4 80%, #444450 95%);
-    text-shadow: 0 0 2px #000000, 0 0 2px #000000, 0 0 2px #000000, 0 0 2px #000000, 0 0 2px #000000, 0 0 2px #000000;
     background-clip: content-box;
     position: absolute;
     width: 100%;
